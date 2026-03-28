@@ -17,6 +17,7 @@ extension CodexService {
         )
         firstLiveThreadIDCache = threads.first(where: { $0.syncState == .live })?.id
         refreshSubagentIdentityDirectoryFromThreads()
+        scheduleLiveActivityRefresh()
     }
 
     // Shared O(1) thread lookup for hot paths that only need thread metadata.

@@ -1,9 +1,9 @@
 
 # iCodex
 
-Fork of the original [Remodex](https://github.com/Emanuele-web04/remodex) project by Emanuele Di Pietro. Thanks to the original creator for building and open-sourcing it.
+Fork of the original [Remodex](https://github.com/Emanuele-web04/remodex) project by Emanuele Di Pietro. Thanks for open sourcing your work!
 
-Control [Codex](https://openai.com/index/codex/) from your iPhone while keeping the actual runtime on your Mac.
+Control [Codex](https://openai.com/codex/) from your iPhone while keeping the actual runtime on your Mac.
 
 iCodex is local-first:
 

@@ -126,6 +126,7 @@ extension CodexService {
         }
         refreshBusyRepoRootsAndDependentTimelineStates()
         refreshThreadTimelineState(for: threadId)
+        scheduleLiveActivityRefresh()
     }
 
     // Toggles the fallback running marker for pre-turn activity while keeping repo-busy state in sync.
@@ -137,6 +138,7 @@ extension CodexService {
         }
         refreshBusyRepoRootsAndDependentTimelineStates()
         refreshThreadTimelineState(for: threadId)
+        scheduleLiveActivityRefresh()
     }
 
     // Marks a rollout-mirrored run for extra thread/resume catch-up until a real
@@ -159,6 +161,7 @@ extension CodexService {
         clearMirroredRunningCatchupNeeded(for: threadId)
         refreshBusyRepoRootsAndDependentTimelineStates()
         refreshThreadTimelineState(for: threadId)
+        scheduleLiveActivityRefresh()
     }
 
     // Clears every running marker during disconnect/cleanup so stale repo-busy state cannot leak.
@@ -171,6 +174,7 @@ extension CodexService {
         // Always refresh all threads: threads without a gitWorkingDirectory won't appear in
         // changedRoots but still need their isThreadRunning flag updated after clearing.
         refreshAllThreadTimelineStates()
+        scheduleLiveActivityRefresh()
     }
 
     // Returns the latest real terminal outcome seen for a thread.
@@ -222,6 +226,7 @@ extension CodexService {
         refreshBusyRepoRootsAndDependentTimelineStates()
         refreshThreadTimelineState(for: threadId)
         updateBackgroundRunGraceTask()
+        scheduleLiveActivityRefresh()
     }
 
     // Hides the visible running state when a stop attempt proves we still do not have a
@@ -231,6 +236,7 @@ extension CodexService {
         refreshBusyRepoRootsAndDependentTimelineStates()
         refreshThreadTimelineState(for: threadId)
         updateBackgroundRunGraceTask()
+        scheduleLiveActivityRefresh()
     }
 
     // Removes outcome badges while preserving the active-running state.
@@ -291,6 +297,7 @@ extension CodexService {
             state: state,
             previousState: previousState
         )
+        scheduleLiveActivityRefresh()
     }
 
     // Sets the active thread and lazily hydrates old messages from server history.

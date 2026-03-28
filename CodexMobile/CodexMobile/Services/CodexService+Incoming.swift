@@ -145,12 +145,14 @@ extension CodexService {
                     } catch {
                         debugRuntimeLog("auto-approve failed method=\(method): \(error.localizedDescription)")
                         pendingApproval = request
+                        scheduleLiveActivityRefresh()
                     }
                 }
                 return
             }
 
             pendingApproval = request
+            scheduleLiveActivityRefresh()
             return
         }
 
@@ -1619,6 +1621,7 @@ extension CodexService {
         }
         recentActivityLineByThread[dedupeKey] = CodexRecentActivityLine(line: trimmedLine, timestamp: now)
         appendToolActivityLine(threadId: threadId, turnId: turnId, line: trimmedLine)
+        scheduleLiveActivityRefresh()
     }
 
     private func extractToolCallActivityLines(from delta: String) -> [String] {

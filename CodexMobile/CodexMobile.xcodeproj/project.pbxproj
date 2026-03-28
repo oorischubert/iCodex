@@ -10,6 +10,7 @@
 		11A2B3C4D5E6F708192A3B4C /* TurnFileAutocompleteTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A2B3C4D5E6F708192A3B4D /* TurnFileAutocompleteTokenTests.swift */; };
 		22B3C4D5E6F708192A3B4C5D /* CodexFuzzyFileSearchDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B3C4D5E6F708192A3B4C5E /* CodexFuzzyFileSearchDecodeTests.swift */; };
 		2A6D4B8C1E3F507192A4B6C8 /* CodexStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A6D4B8C1E3F507192A4B6C9 /* CodexStatusTests.swift */; };
+		31A1A1A1A1A1A1A1A1A1A101 /* iCodexLiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 31A1A1A1A1A1A1A1A1A1A104 /* iCodexLiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4C0F0D55A5051D8301463C69 /* TurnComposerSendAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BE370810CFD7A76DC2A25F /* TurnComposerSendAvailabilityTests.swift */; };
 		4CCE0926DAD312571934343A /* TurnTimelineReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EEB36EBEA2A475AC9B30B1F /* TurnTimelineReducerTests.swift */; };
 		516497899B5C9A82CD10D93F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A37794F4B32C1952A3770E0 /* Foundation.framework */; };
@@ -38,6 +39,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		31A1A1A1A1A1A1A1A1A1A102 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C09A76A62F4B8D7B003B3F3A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 31A1A1A1A1A1A1A1A1A1A108;
+			remoteInfo = iCodexLiveActivityExtension;
+		};
 		5D03133674F4AAC9F7795B99 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C09A76A62F4B8D7B003B3F3A /* Project object */;
@@ -54,10 +62,25 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		31A1A1A1A1A1A1A1A1A1A103 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				31A1A1A1A1A1A1A1A1A1A101 /* iCodexLiveActivityExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		11A2B3C4D5E6F708192A3B4D /* TurnFileAutocompleteTokenTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TurnFileAutocompleteTokenTests.swift; sourceTree = "<group>"; };
 		22B3C4D5E6F708192A3B4C5E /* CodexFuzzyFileSearchDecodeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexFuzzyFileSearchDecodeTests.swift; sourceTree = "<group>"; };
 		2A6D4B8C1E3F507192A4B6C9 /* CodexStatusTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexStatusTests.swift; sourceTree = "<group>"; };
+		31A1A1A1A1A1A1A1A1A1A104 /* iCodexLiveActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = iCodexLiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B1A9C7D5E4F60718293A4B5 /* BuildSupport/Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildSupport/Base.xcconfig; sourceTree = SOURCE_ROOT; };
 		4EEB36EBEA2A475AC9B30B1F /* TurnTimelineReducerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TurnTimelineReducerTests.swift; sourceTree = "<group>"; };
 		6F8E129A7BC34A12D45E6F71 /* CodexThreadStartProjectBindingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexThreadStartProjectBindingTests.swift; sourceTree = "<group>"; };
@@ -87,7 +110,30 @@
 		FBC8EB1341C49A392A43BFB3 /* CodexMobileTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodexMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		31A1A1A1A1A1A1A1A1A1A105 /* Exceptions for "CodexLiveActivityExtension" folder in "iCodexLiveActivityExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 31A1A1A1A1A1A1A1A1A1A108 /* iCodexLiveActivityExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		31A1A1A1A1A1A1A1A1A1A106 /* CodexLiveActivityShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CodexLiveActivityShared;
+			sourceTree = "<group>";
+		};
+		31A1A1A1A1A1A1A1A1A1A107 /* CodexLiveActivityExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				31A1A1A1A1A1A1A1A1A1A105 /* Exceptions for "CodexLiveActivityExtension" folder in "iCodexLiveActivityExtension" target */,
+			);
+			path = CodexLiveActivityExtension;
+			sourceTree = "<group>";
+		};
 		C09A76B02F4B8D7B003B3F3A /* CodexMobile */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = CodexMobile;
@@ -96,6 +142,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		31A1A1A1A1A1A1A1A1A1A10E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C09A76AB2F4B8D7B003B3F3A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -173,6 +226,8 @@
 		C09A76A52F4B8D7B003B3F3A = {
 			isa = PBXGroup;
 			children = (
+				31A1A1A1A1A1A1A1A1A1A106 /* CodexLiveActivityShared */,
+				31A1A1A1A1A1A1A1A1A1A107 /* CodexLiveActivityExtension */,
 				C09A76B02F4B8D7B003B3F3A /* CodexMobile */,
 				C09A76AF2F4B8D7B003B3F3A /* Products */,
 				B593FCA030A810D9E56EC959 /* Frameworks */,
@@ -186,6 +241,7 @@
 			isa = PBXGroup;
 			children = (
 				C09A76AE2F4B8D7B003B3F3A /* CodexMobile.app */,
+				31A1A1A1A1A1A1A1A1A1A104 /* iCodexLiveActivityExtension.appex */,
 				FBC8EB1341C49A392A43BFB3 /* CodexMobileTests.xctest */,
 				F0EE6A924EE6B288E7D0DFE1 /* CodexMobileUITests.xctest */,
 			);
@@ -211,6 +267,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		31A1A1A1A1A1A1A1A1A1A108 /* iCodexLiveActivityExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 31A1A1A1A1A1A1A1A1A1A10C /* Build configuration list for PBXNativeTarget "iCodexLiveActivityExtension" */;
+			buildPhases = (
+				31A1A1A1A1A1A1A1A1A1A10D /* Sources */,
+				31A1A1A1A1A1A1A1A1A1A10E /* Frameworks */,
+				31A1A1A1A1A1A1A1A1A1A10F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				31A1A1A1A1A1A1A1A1A1A106 /* CodexLiveActivityShared */,
+				31A1A1A1A1A1A1A1A1A1A107 /* CodexLiveActivityExtension */,
+			);
+			name = iCodexLiveActivityExtension;
+			productName = iCodexLiveActivityExtension;
+			productReference = 31A1A1A1A1A1A1A1A1A1A104 /* iCodexLiveActivityExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		4DA12F4370C3EC1B9280A66F /* CodexMobileUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 520922595A0A6AF31B19F229 /* Build configuration list for PBXNativeTarget "CodexMobileUITests" */;
@@ -254,12 +331,15 @@
 				C09A76AA2F4B8D7B003B3F3A /* Sources */,
 				C09A76AB2F4B8D7B003B3F3A /* Frameworks */,
 				C09A76AC2F4B8D7B003B3F3A /* Resources */,
+				31A1A1A1A1A1A1A1A1A1A103 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				31A1A1A1A1A1A1A1A1A1A109 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				31A1A1A1A1A1A1A1A1A1A106 /* CodexLiveActivityShared */,
 				C09A76B02F4B8D7B003B3F3A /* CodexMobile */,
 			);
 			name = CodexMobile;
@@ -277,6 +357,9 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					31A1A1A1A1A1A1A1A1A1A108 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					C09A76AD2F4B8D7B003B3F3A = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -300,6 +383,7 @@
 			projectRoot = "";
 			targets = (
 				C09A76AD2F4B8D7B003B3F3A /* CodexMobile */,
+				31A1A1A1A1A1A1A1A1A1A108 /* iCodexLiveActivityExtension */,
 				75087BFA4D34C41906650C95 /* CodexMobileTests */,
 				4DA12F4370C3EC1B9280A66F /* CodexMobileUITests */,
 			);
@@ -307,6 +391,13 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		31A1A1A1A1A1A1A1A1A1A10F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5A5D7883E5CC7BCD3EAC431E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -331,6 +422,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		31A1A1A1A1A1A1A1A1A1A10D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		328D9BFFDCB2BC75D1E050D5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -380,6 +478,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		31A1A1A1A1A1A1A1A1A1A109 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 31A1A1A1A1A1A1A1A1A1A108 /* iCodexLiveActivityExtension */;
+			targetProxy = 31A1A1A1A1A1A1A1A1A1A102 /* PBXContainerItemProxy */;
+		};
 		AAE44F8D7AD2D1D62A7CE4B0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = CodexMobile;
@@ -395,6 +498,77 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		31A1A1A1A1A1A1A1A1A1A10A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 112;
+				DEVELOPMENT_TEAM = K47KPRR7XP;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CodexLiveActivityExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "iCodex Status";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oorischubert.iCodex.iCodexLiveActivityExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		31A1A1A1A1A1A1A1A1A1A10B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 112;
+				DEVELOPMENT_TEAM = K47KPRR7XP;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CodexLiveActivityExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "iCodex Status";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oorischubert.iCodex.iCodexLiveActivityExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		501D189BC697D4A1009B0D76 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -685,6 +859,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		31A1A1A1A1A1A1A1A1A1A10C /* Build configuration list for PBXNativeTarget "iCodexLiveActivityExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				31A1A1A1A1A1A1A1A1A1A10A /* Debug */,
+				31A1A1A1A1A1A1A1A1A1A10B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		520922595A0A6AF31B19F229 /* Build configuration list for PBXNativeTarget "CodexMobileUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

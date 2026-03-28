@@ -411,6 +411,7 @@ extension CodexService {
 
         try await sendResponse(id: request.requestID, result: approvalDecisionResult(decision))
         pendingApproval = nil
+        scheduleLiveActivityRefresh()
     }
 
     // Declines the latest pending approval request.
@@ -421,6 +422,7 @@ extension CodexService {
 
         try await sendResponse(id: request.requestID, result: approvalDecisionResult("decline"))
         pendingApproval = nil
+        scheduleLiveActivityRefresh()
     }
 
     // Responds to item/tool/requestUserInput using the exact app-server answer envelope.

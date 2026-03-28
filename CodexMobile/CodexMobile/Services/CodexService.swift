@@ -478,6 +478,7 @@ final class CodexService {
     let defaults: UserDefaults
     let userNotificationCenter: CodexUserNotificationCentering
     let remoteNotificationRegistrar: CodexRemoteNotificationRegistering
+    @ObservationIgnored let liveActivityController = CodexLiveActivityController()
 
     static let selectedModelIdDefaultsKey = "codex.selectedModelId"
     static let selectedReasoningEffortDefaultsKey = "codex.selectedReasoningEffort"

@@ -16,6 +16,7 @@ struct CodexMobileApp: App {
     init() {
         let service = CodexService()
         service.configureNotifications()
+        service.scheduleLiveActivityRefresh()
         _codexService = State(initialValue: service)
         _subscriptionService = State(initialValue: SubscriptionService())
     }

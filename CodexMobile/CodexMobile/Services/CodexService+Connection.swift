@@ -116,6 +116,7 @@ extension CodexService {
                 await self?.refreshGPTAccountState()
                 self?.startGPTLoginSyncIfNeeded()
             }
+            scheduleLiveActivityRefresh()
         } catch {
             let shouldResetSavedSession = recordTrustedReconnectFailureIfNeeded(
                 isTrustedReconnectAttempt: isTrustedReconnectAttempt
@@ -174,6 +175,7 @@ extension CodexService {
         cancelTrustedSessionResolve()
 
         failAllPendingRequests(with: CodexServiceError.disconnected)
+        scheduleLiveActivityRefresh()
     }
 
     // Clears the remembered relay pairing when the remote Mac session is gone for good.
@@ -305,6 +307,7 @@ extension CodexService {
                 shouldAutoReconnectOnForeground = false
                 connectionRecoveryState = .idle
                 recoverTrustedReconnectCandidate()
+                scheduleLiveActivityRefresh()
                 failAllPendingRequests(with: error)
                 return
             }
@@ -319,6 +322,7 @@ extension CodexService {
         // Thread resumes are transport-scoped; a fresh socket must be allowed to
         // issue `thread/resume` again for desktop-origin threads after recovery.
         resumedThreadIDs.removeAll()
+        scheduleLiveActivityRefresh()
         failAllPendingRequests(with: error)
     }
 }
@@ -409,6 +413,7 @@ extension CodexService {
         resumedThreadIDs.removeAll()
         clearHydrationCaches()
         resetSecureTransportState()
+        scheduleLiveActivityRefresh()
     }
 
     // Clears UI-only recovery prompts that should not survive a relay/context teardown.
