@@ -34,10 +34,28 @@ enum CodexSecureConnectionState: Equatable, Sendable {
 struct CodexPairingQRPayload: Codable, Sendable {
     let v: Int
     let relay: String
+    let relayCandidates: [String]?
     let sessionId: String
     let macDeviceId: String
     let macIdentityPublicKey: String
     let expiresAt: Int64
+
+    var relayBaseURLs: [String] {
+        var urls: [String] = []
+
+        func append(_ value: String?) {
+            guard let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !normalized.isEmpty,
+                  !urls.contains(normalized) else {
+                return
+            }
+            urls.append(normalized)
+        }
+
+        append(relay)
+        relayCandidates?.forEach(append)
+        return urls
+    }
 }
 
 struct CodexPhoneIdentityState: Codable, Sendable {

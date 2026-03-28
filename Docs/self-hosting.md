@@ -51,10 +51,22 @@ icodex status
 icodex stop
 ```
 
-If the advertised hostname should be different, override it:
+If the advertised LAN hostname should be different, override it:
 
 ```sh
 ICODEX_LOCAL_RELAY_HOSTNAME="192.168.1.10" icodex up
+```
+
+If Tailscale is running, `icodex up` also advertises a Tailscale relay candidate in the QR payload so the phone can reconnect away from your LAN. To force a specific Tailscale hostname or address, set:
+
+```sh
+ICODEX_LOCAL_RELAY_TAILSCALE_HOST="100.x.y.z" icodex up
+```
+
+To disable that extra advertised relay candidate:
+
+```sh
+ICODEX_LOCAL_RELAY_INCLUDE_TAILSCALE=false icodex up
 ```
 
 If you want to run the pieces manually instead, start the relay:

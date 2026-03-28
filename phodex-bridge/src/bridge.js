@@ -125,6 +125,9 @@ function startBridge({
   const secureTransport = createBridgeSecureTransport({
     sessionId,
     relayUrl: relayBaseUrl,
+    relayUrls: config.localRelayEnabled
+      ? (config.localRelayAdvertiseHosts || []).map((host) => `ws://${host}:${config.localRelayPort}/relay`)
+      : [relayBaseUrl],
     deviceState,
     onTrustedPhoneUpdate(nextDeviceState) {
       deviceState = nextDeviceState;

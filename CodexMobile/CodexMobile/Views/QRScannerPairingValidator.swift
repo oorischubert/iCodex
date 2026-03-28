@@ -30,7 +30,7 @@ func validatePairingQRCode(_ code: String, now: Date = Date()) -> QRScannerPairi
             )
         }
 
-        guard !payload.relay.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !payload.relayBaseURLs.isEmpty else {
             return .scanError("QR code is missing the relay URL. Re-generate the code from the bridge.")
         }
 

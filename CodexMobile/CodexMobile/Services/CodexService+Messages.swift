@@ -519,6 +519,43 @@ extension CodexService {
         return message.id
     }
 
+    // Suppresses back-to-back duplicate sends when a flaky relay path accepts the first turn
+    // but the phone loses the response before it can confirm delivery locally.
+    func hasRecentEquivalentUserMessageAwaitingConfirmation(
+        threadId: String,
+        text: String,
+        attachments: [CodexImageAttachment],
+        within window: TimeInterval = 8
+    ) -> Bool {
+        let normalizedText = Self.normalizedMessageText(text)
+        guard !normalizedText.isEmpty || !attachments.isEmpty else {
+            return false
+        }
+
+        let cutoffDate = Date().addingTimeInterval(-window)
+        let attachmentKey = Self.attachmentSignature(for: attachments)
+        let threadIsRunning = threadHasActiveOrRunningTurn(threadId)
+            || protectedRunningFallbackThreadIDs.contains(threadId)
+
+        return messages(for: threadId).reversed().contains { candidate in
+            guard candidate.role == .user,
+                  candidate.createdAt >= cutoffDate,
+                  Self.normalizedMessageText(candidate.text) == normalizedText,
+                  Self.attachmentSignature(for: candidate.attachments) == attachmentKey else {
+                return false
+            }
+
+            switch candidate.deliveryState {
+            case .pending:
+                return true
+            case .confirmed:
+                return threadIsRunning
+            case .failed:
+                return false
+            }
+        }
+    }
+
     // Upserts a confirmed user row mirrored from a desktop-origin rollout so
     // reopened threads can display the remote prompt immediately without
     // disturbing the phone-native pending-send path.

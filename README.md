@@ -96,14 +96,17 @@ icodex status
 icodex stop
 ```
 
-By default the managed local relay listens on `0.0.0.0:9000` and advertises a relay URL like `ws://<your-mac>.local:9000/relay` in the QR code.
+By default the managed local relay listens on `0.0.0.0:9000` and advertises a LAN relay URL like `ws://<your-mac>.local:9000/relay` in the QR code. If a Tailscale address is available, the QR also includes a Tailscale relay candidate so the phone can fall back to that path away from your LAN.
 
 Optional overrides:
 
 ```sh
 ICODEX_LOCAL_RELAY_HOSTNAME="192.168.1.10" icodex up
 ICODEX_LOCAL_RELAY_BIND_HOST="127.0.0.1" ICODEX_LOCAL_RELAY_PORT="9100" icodex up
+ICODEX_LOCAL_RELAY_TAILSCALE_HOST="100.x.y.z" icodex up
 ```
+
+If you do not want the managed local relay to advertise a Tailscale candidate, set `ICODEX_LOCAL_RELAY_INCLUDE_TAILSCALE=false`.
 
 ### External relay
 

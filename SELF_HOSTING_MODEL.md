@@ -40,6 +40,7 @@ Codex still runs on your Mac. The relay is only the transport layer.
 - direct source bridge command without `npm link`: `cd phodex-bridge && node ./bin/icodex.js up`
 - preferred relay env var: `ICODEX_RELAY`
 - preferred local-relay hostname override: `ICODEX_LOCAL_RELAY_HOSTNAME`
+- optional local-relay Tailscale override: `ICODEX_LOCAL_RELAY_TAILSCALE_HOST`
 - local bridge state directory: `~/.icodex`
 
 `REMODEX_*` env vars remain accepted as compatibility fallbacks where needed, but this fork should document and prefer `ICODEX_*`.

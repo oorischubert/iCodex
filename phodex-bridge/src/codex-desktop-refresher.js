@@ -549,9 +549,14 @@ function readBridgeConfig({
     defaultLocalRelayHostname({ env, platform }),
     env
   );
+  const localRelayAdvertiseHosts = resolveLocalRelayAdvertiseHosts({
+    env,
+    platform,
+    primaryHost: localRelayAdvertiseHost,
+  });
   const relayUrl = explicitRelayUrl || (
     localRelayEnabled
-      ? `ws://${localRelayAdvertiseHost}:${localRelayPort}/relay`
+      ? `ws://${localRelayAdvertiseHosts[0]}:${localRelayPort}/relay`
       : ""
   );
   const codexEndpoint = readFirstDefinedEnv(
@@ -572,6 +577,7 @@ function readBridgeConfig({
     localRelayEnabled,
     localRelayBindHost,
     localRelayAdvertiseHost,
+    localRelayAdvertiseHosts,
     localRelayPort,
     pushServiceUrl: readFirstDefinedEnv(
       ["ICODEX_PUSH_SERVICE_URL", "REMODEX_PUSH_SERVICE_URL"],
@@ -738,6 +744,82 @@ function defaultLocalRelayHostname({ env = process.env, platform = process.platf
   }
 
   return machineName;
+}
+
+function resolveLocalRelayAdvertiseHosts({
+  env = process.env,
+  platform = process.platform,
+  primaryHost = defaultLocalRelayHostname({ env, platform }),
+} = {}) {
+  const hosts = [];
+  const addHost = (value) => {
+    const normalized = normalizeAdvertiseHost(value);
+    if (!normalized || hosts.includes(normalized)) {
+      return;
+    }
+    hosts.push(normalized);
+  };
+
+  addHost(primaryHost);
+
+  const includeTailscale = readOptionalBooleanEnv(
+    ["ICODEX_LOCAL_RELAY_INCLUDE_TAILSCALE", "REMODEX_LOCAL_RELAY_INCLUDE_TAILSCALE"],
+    env
+  );
+  if (includeTailscale === false) {
+    return hosts.length ? hosts : ["localhost"];
+  }
+
+  const explicitTailscaleHost = readFirstDefinedEnv(
+    ["ICODEX_LOCAL_RELAY_TAILSCALE_HOST", "REMODEX_LOCAL_RELAY_TAILSCALE_HOST"],
+    "",
+    env
+  );
+  addHost(explicitTailscaleHost);
+
+  for (const tailnetAddress of detectTailscaleAddresses()) {
+    addHost(tailnetAddress);
+  }
+
+  return hosts.length ? hosts : ["localhost"];
+}
+
+function detectTailscaleAddresses(networkInterfaces = os.networkInterfaces()) {
+  const results = [];
+  for (const [interfaceName, addresses] of Object.entries(networkInterfaces || {})) {
+    if (!Array.isArray(addresses)) {
+      continue;
+    }
+
+    const isTailscaleInterface = String(interfaceName).toLowerCase().startsWith("tailscale");
+    for (const entry of addresses) {
+      if (!entry || entry.family !== "IPv4" || entry.internal || !entry.address) {
+        continue;
+      }
+
+      if (isTailscaleInterface || isLikelyTailscaleIPv4(entry.address)) {
+        if (!results.includes(entry.address)) {
+          results.push(entry.address);
+        }
+      }
+    }
+  }
+  return results;
+}
+
+function isLikelyTailscaleIPv4(address) {
+  const octets = String(address).split(".").map((value) => Number.parseInt(value, 10));
+  if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+    return false;
+  }
+
+  const [first, second] = octets;
+  return first === 100 && second >= 64 && second <= 127;
+}
+
+function normalizeAdvertiseHost(value) {
+  const normalized = String(value || "").trim();
+  return normalized || "";
 }
 
 function extractErrorMessage(error) {

@@ -349,6 +349,7 @@ final class CodexService {
     // Relay session persistence
     var relaySessionId: String?
     var relayUrl: String?
+    var relayCandidateURLs: [String] = []
     var relayMacDeviceId: String?
     var relayMacIdentityPublicKey: String?
     var relayProtocolVersion: Int = codexSecureProtocolVersion
@@ -607,6 +608,7 @@ final class CodexService {
         // Restore relay session from Keychain
         self.relaySessionId = SecureStore.readString(for: CodexSecureKeys.relaySessionId)
         self.relayUrl = SecureStore.readString(for: CodexSecureKeys.relayUrl)
+        self.relayCandidateURLs = SecureStore.readCodable([String].self, for: CodexSecureKeys.relayCandidateUrls) ?? []
         self.relayMacDeviceId = SecureStore.readString(for: CodexSecureKeys.relayMacDeviceId)
         self.relayMacIdentityPublicKey = SecureStore.readString(for: CodexSecureKeys.relayMacIdentityPublicKey)
         if let rawProtocolVersion = SecureStore.readString(for: CodexSecureKeys.relayProtocolVersion),
@@ -648,6 +650,23 @@ final class CodexService {
         relayUrl?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
+    }
+
+    var normalizedRelayCandidateURLs: [String] {
+        var urls: [String] = []
+
+        func append(_ value: String?) {
+            guard let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !normalized.isEmpty,
+                  !urls.contains(normalized) else {
+                return
+            }
+            urls.append(normalized)
+        }
+
+        append(relayUrl)
+        relayCandidateURLs.forEach { append($0) }
+        return urls
     }
 
     var normalizedRelayMacDeviceId: String? {

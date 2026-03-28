@@ -749,6 +749,17 @@ extension CodexService {
         shouldAppendUserMessage: Bool = true,
         collaborationMode: CodexCollaborationModeKind? = nil
     ) async throws {
+        if shouldAppendUserMessage,
+           hasRecentEquivalentUserMessageAwaitingConfirmation(
+               threadId: threadId,
+               text: userInput,
+               attachments: attachments
+           ) {
+            markThreadAsRunning(threadId)
+            setProtectedRunningFallback(true, for: threadId)
+            return
+        }
+
         let pendingMessageId = shouldAppendUserMessage
             ? appendUserMessage(
                 threadId: threadId,

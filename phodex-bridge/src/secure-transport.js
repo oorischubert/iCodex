@@ -36,6 +36,7 @@ const MAX_BRIDGE_OUTBOUND_BYTES = 10 * 1024 * 1024;
 function createBridgeSecureTransport({
   sessionId,
   relayUrl,
+  relayUrls = [],
   deviceState,
   onTrustedPhoneUpdate = null,
 }) {
@@ -57,6 +58,7 @@ function createBridgeSecureTransport({
     return {
       v: PAIRING_QR_VERSION,
       relay: relayUrl,
+      relayCandidates: relayUrls.length > 1 ? relayUrls : undefined,
       sessionId,
       macDeviceId: currentDeviceState.macDeviceId,
       macIdentityPublicKey: currentDeviceState.macIdentityPublicKey,

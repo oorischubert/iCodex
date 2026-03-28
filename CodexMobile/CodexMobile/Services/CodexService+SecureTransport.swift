@@ -258,14 +258,18 @@ extension CodexService {
 
     // Saves the QR-derived bridge metadata used for secure reconnects.
     func rememberRelayPairing(_ payload: CodexPairingQRPayload) {
+        let relayURLs = mergedRelayBaseURLs(primary: payload.relay, additional: payload.relayCandidates ?? [])
+        let selectedRelayURL = relayURLs.first ?? payload.relay
         SecureStore.writeString(payload.sessionId, for: CodexSecureKeys.relaySessionId)
-        SecureStore.writeString(payload.relay, for: CodexSecureKeys.relayUrl)
+        SecureStore.writeString(selectedRelayURL, for: CodexSecureKeys.relayUrl)
+        SecureStore.writeCodable(relayURLs, for: CodexSecureKeys.relayCandidateUrls)
         SecureStore.writeString(payload.macDeviceId, for: CodexSecureKeys.relayMacDeviceId)
         SecureStore.writeString(payload.macIdentityPublicKey, for: CodexSecureKeys.relayMacIdentityPublicKey)
         SecureStore.writeString(String(codexSecureProtocolVersion), for: CodexSecureKeys.relayProtocolVersion)
         SecureStore.writeString("0", for: CodexSecureKeys.relayLastAppliedBridgeOutboundSeq)
         relaySessionId = payload.sessionId
-        relayUrl = payload.relay
+        relayUrl = selectedRelayURL
+        relayCandidateURLs = relayURLs
         relayMacDeviceId = payload.macDeviceId
         relayMacIdentityPublicKey = payload.macIdentityPublicKey
         relayProtocolVersion = codexSecureProtocolVersion
@@ -274,6 +278,14 @@ extension CodexService {
         trustedReconnectFailureCount = 0
         secureConnectionState = trustedMacRegistry.records[payload.macDeviceId] == nil ? .handshaking : .trustedMac
         secureMacFingerprint = codexSecureFingerprint(for: payload.macIdentityPublicKey)
+    }
+
+    func rememberWorkingRelayURL(_ relayURL: String) {
+        let relayURLs = mergedRelayBaseURLs(primary: relayURL, additional: relayCandidateURLs)
+        SecureStore.writeString(relayURL, for: CodexSecureKeys.relayUrl)
+        SecureStore.writeCodable(relayURLs, for: CodexSecureKeys.relayCandidateUrls)
+        self.relayUrl = relayURL
+        self.relayCandidateURLs = relayURLs
     }
 
     // Resets volatile secure state while preserving the trusted-device registry.
@@ -649,11 +661,16 @@ private extension CodexService {
     private func rememberResolvedTrustedSession(_ resolved: CodexTrustedSessionResolveResponse, relayURL: String) {
         SecureStore.writeString(resolved.sessionId, for: CodexSecureKeys.relaySessionId)
         SecureStore.writeString(relayURL, for: CodexSecureKeys.relayUrl)
+        SecureStore.writeCodable(
+            mergedRelayBaseURLs(primary: relayURL, additional: relayCandidateURLs),
+            for: CodexSecureKeys.relayCandidateUrls
+        )
         SecureStore.writeString(resolved.macDeviceId, for: CodexSecureKeys.relayMacDeviceId)
         SecureStore.writeString(resolved.macIdentityPublicKey, for: CodexSecureKeys.relayMacIdentityPublicKey)
         SecureStore.writeString(String(codexSecureProtocolVersion), for: CodexSecureKeys.relayProtocolVersion)
         relaySessionId = resolved.sessionId
         relayUrl = relayURL
+        relayCandidateURLs = mergedRelayBaseURLs(primary: relayURL, additional: relayCandidateURLs)
         relayMacDeviceId = resolved.macDeviceId
         relayMacIdentityPublicKey = resolved.macIdentityPublicKey
         relayProtocolVersion = codexSecureProtocolVersion
@@ -857,5 +874,22 @@ private extension CodexService {
 
     func shortTranscriptDigest(_ data: Data) -> String {
         SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined().prefix(16).description
+    }
+
+    private func mergedRelayBaseURLs(primary: String?, additional: [String]) -> [String] {
+        var urls: [String] = []
+
+        func append(_ value: String?) {
+            guard let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !normalized.isEmpty,
+                  !urls.contains(normalized) else {
+                return
+            }
+            urls.append(normalized)
+        }
+
+        append(primary)
+        additional.forEach { append($0) }
+        return urls
     }
 }
