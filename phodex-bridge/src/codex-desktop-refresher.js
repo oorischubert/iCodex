@@ -27,7 +27,7 @@ class CodexDesktopRefresher {
     refreshCommand = "",
     bundleId = DEFAULT_BUNDLE_ID,
     appPath = DEFAULT_APP_PATH,
-    logPrefix = "[remodex]",
+    logPrefix = "[icodex]",
     fallbackNewThreadMs = DEFAULT_FALLBACK_NEW_THREAD_MS,
     midRunRefreshThrottleMs = DEFAULT_MID_RUN_REFRESH_THROTTLE_MS,
     rolloutLookupTimeoutMs = DEFAULT_ROLLOUT_LOOKUP_TIMEOUT_MS,
@@ -369,7 +369,7 @@ class CodexDesktopRefresher {
     this.fallbackTimer = null;
   }
 
-  // Keeps one lightweight rollout watcher alive for the current Remodex-controlled thread.
+  // Keeps one lightweight rollout watcher alive for the current iCodex-controlled thread.
   ensureWatcher(threadId) {
     if (!this.canRefresh() || !threadId) {
       return;
@@ -522,90 +522,47 @@ function readBridgeConfig({
   runtimeRoot = path.resolve(__dirname, ".."),
   fsImpl = fs,
 } = {}) {
-  const privateDefaults = readPrivatePackageDefaults({ runtimeRoot, fsImpl });
-  const sourceCheckout = isSourceCheckout(runtimeRoot, fsImpl);
-  const defaultRelayUrl = sourceCheckout
-    ? ""
-    : privateDefaults.relayUrl;
-  const explicitRelayUrl = readFirstDefinedEnv(
-    ["REMODEX_RELAY", "PHODEX_RELAY"],
+  const relayUrl = readFirstDefinedEnv(
+    ["ICODEX_RELAY", "REMODEX_RELAY", "PHODEX_RELAY"],
     "",
     env
   );
-  const relayUrl = readFirstDefinedEnv(
-    ["REMODEX_RELAY", "PHODEX_RELAY"],
-    defaultRelayUrl,
-    env
-  );
-  const defaultPushServiceUrl = sourceCheckout || explicitRelayUrl
-    ? ""
-    : privateDefaults.pushServiceUrl;
   const codexEndpoint = readFirstDefinedEnv(
-    ["REMODEX_CODEX_ENDPOINT", "PHODEX_CODEX_ENDPOINT"],
+    ["ICODEX_CODEX_ENDPOINT", "REMODEX_CODEX_ENDPOINT", "PHODEX_CODEX_ENDPOINT"],
     "",
     env
   );
   const refreshCommand = readFirstDefinedEnv(
-    ["REMODEX_REFRESH_COMMAND", "PHODEX_ON_PHONE_MESSAGE"],
+    ["ICODEX_REFRESH_COMMAND", "REMODEX_REFRESH_COMMAND", "PHODEX_ON_PHONE_MESSAGE"],
     "",
     env
   );
-  const explicitRefreshEnabled = readOptionalBooleanEnv(["REMODEX_REFRESH_ENABLED"], env);
+  const explicitRefreshEnabled = readOptionalBooleanEnv(["ICODEX_REFRESH_ENABLED", "REMODEX_REFRESH_ENABLED"], env);
   // Desktop refresh is opt-in for now because Codex.app still lacks true live updates.
   const defaultRefreshEnabled = false;
   return {
     relayUrl,
     pushServiceUrl: readFirstDefinedEnv(
-      ["REMODEX_PUSH_SERVICE_URL"],
-      defaultPushServiceUrl,
+      ["ICODEX_PUSH_SERVICE_URL", "REMODEX_PUSH_SERVICE_URL"],
+      "",
       env
     ),
     pushPreviewMaxChars: parseIntegerEnv(
-      readFirstDefinedEnv(["REMODEX_PUSH_PREVIEW_MAX_CHARS"], "160", env),
+      readFirstDefinedEnv(["ICODEX_PUSH_PREVIEW_MAX_CHARS", "REMODEX_PUSH_PREVIEW_MAX_CHARS"], "160", env),
       160
     ),
     refreshEnabled: explicitRefreshEnabled == null
       ? defaultRefreshEnabled
       : explicitRefreshEnabled,
     refreshDebounceMs: parseIntegerEnv(
-      readFirstDefinedEnv(["REMODEX_REFRESH_DEBOUNCE_MS"], String(DEFAULT_DEBOUNCE_MS), env),
+      readFirstDefinedEnv(["ICODEX_REFRESH_DEBOUNCE_MS", "REMODEX_REFRESH_DEBOUNCE_MS"], String(DEFAULT_DEBOUNCE_MS), env),
       DEFAULT_DEBOUNCE_MS
     ),
     codexEndpoint,
     refreshCommand,
-    codexBundleId: readFirstDefinedEnv(["REMODEX_CODEX_BUNDLE_ID"], DEFAULT_BUNDLE_ID, env),
+    codexBundleId: readFirstDefinedEnv(["ICODEX_CODEX_BUNDLE_ID", "REMODEX_CODEX_BUNDLE_ID"], DEFAULT_BUNDLE_ID, env),
     codexAppPath: DEFAULT_APP_PATH,
   };
-}
-
-function readPrivatePackageDefaults({ runtimeRoot, fsImpl }) {
-  const defaultsPath = path.join(runtimeRoot, "src", "private-defaults.json");
-  if (!fsImpl.existsSync(defaultsPath)) {
-    return {
-      relayUrl: "",
-      pushServiceUrl: "",
-    };
-  }
-
-  try {
-    const parsed = safeParseJSON(fsImpl.readFileSync(defaultsPath, "utf8"));
-    return {
-      relayUrl: readString(parsed?.relayUrl) || "",
-      pushServiceUrl: readString(parsed?.pushServiceUrl) || "",
-    };
-  } catch {
-    return {
-      relayUrl: "",
-      pushServiceUrl: "",
-    };
-  }
-}
-
-// Keeps repo checkouts local-first while published npm installs can stay ready-to-run.
-function isSourceCheckout(runtimeRoot, fsImpl) {
-  const repoRoot = path.resolve(runtimeRoot, "..");
-  return path.basename(runtimeRoot) === "phodex-bridge"
-    && fsImpl.existsSync(path.join(repoRoot, ".git"));
 }
 
 function execFilePromise(command, args) {

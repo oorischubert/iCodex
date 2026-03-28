@@ -24,7 +24,7 @@ const {
 
 const PAIRING_QR_VERSION = 2;
 const SECURE_PROTOCOL_VERSION = 1;
-const HANDSHAKE_TAG = "remodex-e2ee-v1";
+const HANDSHAKE_TAG = "icodex-e2ee-v1";
 const HANDSHAKE_MODE_QR_BOOTSTRAP = "qr_bootstrap";
 const HANDSHAKE_MODE_TRUSTED_RECONNECT = "trusted_reconnect";
 const SECURE_SENDER_MAC = "mac";
@@ -75,7 +75,7 @@ function createBridgeSecureTransport({
       if (parsed.method || parsed.id != null) {
         sendControlMessage(createSecureError({
           code: "update_required",
-          message: "This bridge requires the latest Remodex iPhone app for secure pairing.",
+          message: "This bridge requires the latest iCodex iPhone app for secure pairing.",
         }));
         return true;
       }
@@ -534,7 +534,7 @@ function createBridgeSecureTransport({
 }
 
 function debugSecureLog(message) {
-  console.log(`[remodex][secure] ${message}`);
+  console.log(`[icodex][secure] ${message}`);
 }
 
 function shortId(value) {

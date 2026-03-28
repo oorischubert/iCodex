@@ -661,7 +661,7 @@ extension CodexService {
         if nsError.domain == NSURLErrorDomain,
            nsError.code == NSURLErrorNotConnectedToInternet,
            requiresLocalNetworkAuthorization(for: URL(string: attemptedURL) ?? URL(fileURLWithPath: "/")) {
-            return "Remodex cannot open the local relay connection on this iPhone. Check Local Network and the app's Wi-Fi/Cellular access in Settings, then retry."
+            return "iCodex cannot open the local relay connection on this iPhone. Check Local Network and the app's Wi-Fi/Cellular access in Settings, then retry."
         }
 
         return error.localizedDescription
@@ -881,7 +881,7 @@ extension CodexService {
             return nil
         }
 
-        return "The saved Mac session is temporarily unavailable. Remodex will keep retrying. If you restarted the bridge on your Mac, scan the new QR code."
+        return "The saved Mac session is temporarily unavailable. iCodex will keep retrying. If you restarted the bridge on your Mac, scan the new QR code."
     }
 
     func retryableSessionUnavailableMessage(forConnectError error: Error) -> String? {
@@ -889,7 +889,7 @@ extension CodexService {
             return nil
         }
 
-        return "The saved Mac session is temporarily unavailable. Remodex will keep retrying. If you restarted the bridge on your Mac, scan the new QR code."
+        return "The saved Mac session is temporarily unavailable. iCodex will keep retrying. If you restarted the bridge on your Mac, scan the new QR code."
     }
 
     // Surfaces relay-enforced drops that keep the pairing valid but lost the current send.
@@ -942,7 +942,7 @@ extension CodexService {
 
         guard status != .denied else {
             let message =
-                "Remodex is not allowed to access your local network. Enable Local Network for Remodex in iPhone Settings and try again."
+                "iCodex is not allowed to access your local network. Enable Local Network for iCodex in iPhone Settings and try again."
             lastErrorMessage = message
             throw CodexServiceError.invalidInput(message)
         }

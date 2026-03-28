@@ -103,7 +103,11 @@ extension CodexService {
         let delegateProxy = CodexNotificationCenterDelegateProxy(service: self)
         notificationCenterDelegateProxy = delegateProxy
         userNotificationCenter.delegate = delegateProxy
-        configureRemoteNotificationObservers()
+        if AppEnvironment.remotePushNotificationsEnabled {
+            configureRemoteNotificationObservers()
+        } else {
+            clearManagedPushRegistrationState()
+        }
         hasConfiguredNotifications = true
 
         Task { @MainActor [weak self] in
@@ -144,12 +148,20 @@ extension CodexService {
     // Re-checks permission, APNs token registration, and bridge sync after app launch or Settings changes.
     func refreshManagedNotificationRegistrationState() async {
         await refreshNotificationAuthorizationStatus()
+        guard AppEnvironment.remotePushNotificationsEnabled else {
+            clearManagedPushRegistrationState()
+            return
+        }
         await registerForRemoteNotificationsIfAllowed()
         await syncManagedPushRegistrationIfNeeded(force: true)
     }
 
     // Registers with APNs only after the user has not explicitly denied alert notifications.
     func registerForRemoteNotificationsIfAllowed() async {
+        guard AppEnvironment.remotePushNotificationsEnabled else {
+            return
+        }
+
         guard notificationAuthorizationStatus != .denied,
               notificationAuthorizationStatus != .notDetermined else {
             await syncManagedPushRegistrationIfNeeded(force: true)
@@ -161,6 +173,11 @@ extension CodexService {
 
     // Persists the APNs token and syncs it to the paired bridge when possible.
     func handleRemoteNotificationDeviceToken(_ deviceToken: Data) {
+        guard AppEnvironment.remotePushNotificationsEnabled else {
+            clearManagedPushRegistrationState()
+            return
+        }
+
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         guard !token.isEmpty else {
             return
@@ -176,6 +193,11 @@ extension CodexService {
 
     // Push token sync is best-effort so reconnects stay resilient if the managed backend is unavailable.
     func syncManagedPushRegistrationIfNeeded(force: Bool = false) async {
+        guard AppEnvironment.remotePushNotificationsEnabled else {
+            clearManagedPushRegistrationState()
+            return
+        }
+
         guard isConnected, isInitialized else {
             return
         }
@@ -213,6 +235,12 @@ extension CodexService {
         } catch {
             debugRuntimeLog("push registration sync failed: \(error.localizedDescription)")
         }
+    }
+
+    func clearManagedPushRegistrationState() {
+        remoteNotificationDeviceToken = nil
+        lastPushRegistrationSignature = nil
+        SecureStore.deleteValue(for: CodexSecureKeys.pushDeviceToken)
     }
 
     // Schedules a local alert only when a run finishes while the app is away from the foreground.

@@ -10,10 +10,10 @@ import SwiftUI
 func remodexNormalizedCreatedBranchName(_ rawName: String) -> String {
     let trimmedName = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedName.isEmpty else { return "" }
-    if trimmedName.hasPrefix("remodex/") {
+    if trimmedName.hasPrefix("icodex/") {
         return trimmedName
     }
-    return "remodex/\(trimmedName)"
+    return "icodex/\(trimmedName)"
 }
 
 // Leaves "open elsewhere" branches selectable so the caller can surface the right alert or git error.
@@ -217,7 +217,7 @@ struct TurnGitBranchPickerSheet: View {
 
     private var isNewBranchNameValid: Bool {
         let trimmed = newBranchName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != "remodex/" else { return false }
+        guard !trimmed.isEmpty, trimmed != "icodex/" else { return false }
         return true
     }
 
@@ -321,7 +321,7 @@ struct TurnGitBranchPickerSheet: View {
 
                     Button {
                         let fromSearch = remodexNormalizedCreatedBranchName(searchText)
-                        newBranchName = fromSearch.isEmpty ? "remodex/" : fromSearch
+                        newBranchName = fromSearch.isEmpty ? "icodex/" : fromSearch
                         isShowingCreateBranchPrompt = true
                     } label: {
                         Label("New branch...", systemImage: "plus")
@@ -350,7 +350,7 @@ struct TurnGitBranchPickerSheet: View {
         .environment(\.defaultMinListRowHeight, 28)
         .searchable(text: $searchText, prompt: "Search branches")
         .alert("New branch", isPresented: $isShowingCreateBranchPrompt) {
-            TextField("remodex/my-feature", text: $newBranchName)
+            TextField("icodex/my-feature", text: $newBranchName)
             Button("Cancel", role: .cancel) {
                 newBranchName = ""
             }
@@ -429,8 +429,8 @@ private struct TurnGitBranchBadge: View {
         branches: [
             "feature/auth-flow",
             "feature/dark-mode",
-            "remodex/onboarding-v2",
-            "remodex/sidebar-refactor",
+            "icodex/onboarding-v2",
+            "icodex/sidebar-refactor",
             "fix/crash-on-launch",
             "fix/memory-leak-timeline",
             "chore/bump-dependencies",
@@ -438,9 +438,9 @@ private struct TurnGitBranchBadge: View {
         ],
         gitBranchesCheckedOutElsewhere: ["feature/dark-mode"],
         gitWorktreePathsByBranch: ["feature/dark-mode": "/tmp/worktree"],
-        selectedBranch: "remodex/onboarding-v2",
+        selectedBranch: "icodex/onboarding-v2",
         defaultBranch: "main",
-        currentBranch: "remodex/onboarding-v2",
+        currentBranch: "icodex/onboarding-v2",
         allowsSelectingCurrentBranch: true,
         sectionTitle: "Branches",
         navigationTitle: "Current Branch",

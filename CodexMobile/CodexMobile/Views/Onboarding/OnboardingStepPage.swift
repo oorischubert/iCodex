@@ -102,7 +102,7 @@ struct OnboardingStepPage: View {
             stepNumber: 1,
             icon: "terminal",
             title: "Install Codex CLI",
-            description: "The AI coding agent that lives in your terminal. Remodex connects to it from your iPhone.",
+            description: "The AI coding agent that lives in your terminal. iCodex connects to it from your iPhone.",
             command: "npm install -g @openai/codex@latest"
         )
     }
@@ -115,9 +115,9 @@ struct OnboardingStepPage: View {
         OnboardingStepPage(
             stepNumber: 2,
             icon: "link",
-            title: "Install the Bridge",
-            description: "A lightweight relay that securely connects your Mac to your iPhone.",
-            command: "npm install -g remodex@latest"
+            title: "Install Bridge Dependencies",
+            description: "Set up the local bridge from this repo so your Mac can pair with your iPhone.",
+            command: AppEnvironment.sourceBridgeInstallCommand
         )
     }
     .preferredColorScheme(.dark)
@@ -129,9 +129,9 @@ struct OnboardingStepPage: View {
         OnboardingStepPage(
             stepNumber: 3,
             icon: "qrcode.viewfinder",
-            title: "Start Pairing",
+            title: "Start iCodex",
             description: "Run this on your Mac. A QR code will appear in your terminal — scan it next.",
-            command: "remodex up"
+            command: AppEnvironment.sourceBridgeStartCommand
         )
     }
     .preferredColorScheme(.dark)

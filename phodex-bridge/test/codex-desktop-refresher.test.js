@@ -33,7 +33,7 @@ test("readBridgeConfig keeps safe defaults and explicit overrides", () => {
     },
   });
   const macEndpointConfig = readBridgeConfig({
-    env: { REMODEX_CODEX_ENDPOINT: "ws://localhost:8080" },
+    env: { ICODEX_CODEX_ENDPOINT: "ws://localhost:8080" },
     platform: "darwin",
     runtimeRoot: "/tmp/remodex-package",
     fsImpl: {
@@ -55,7 +55,7 @@ test("readBridgeConfig keeps safe defaults and explicit overrides", () => {
     },
   });
   const linuxCommandConfig = readBridgeConfig({
-    env: { REMODEX_REFRESH_COMMAND: "echo refresh" },
+    env: { ICODEX_REFRESH_COMMAND: "echo refresh" },
     platform: "linux",
     runtimeRoot: "/tmp/remodex-package",
     fsImpl: {
@@ -67,8 +67,8 @@ test("readBridgeConfig keeps safe defaults and explicit overrides", () => {
   });
   const explicitOnConfig = readBridgeConfig({
     env: {
-      REMODEX_CODEX_ENDPOINT: "ws://localhost:8080",
-      REMODEX_REFRESH_ENABLED: "true",
+      ICODEX_CODEX_ENDPOINT: "ws://localhost:8080",
+      ICODEX_REFRESH_ENABLED: "true",
     },
     platform: "darwin",
     runtimeRoot: "/tmp/remodex-package",
@@ -81,8 +81,8 @@ test("readBridgeConfig keeps safe defaults and explicit overrides", () => {
   });
   const explicitOffConfig = readBridgeConfig({
     env: {
-      REMODEX_REFRESH_COMMAND: "echo refresh",
-      REMODEX_REFRESH_ENABLED: "false",
+      ICODEX_REFRESH_COMMAND: "echo refresh",
+      ICODEX_REFRESH_ENABLED: "false",
     },
     platform: "darwin",
     runtimeRoot: "/tmp/remodex-package",
@@ -103,8 +103,8 @@ test("readBridgeConfig keeps safe defaults and explicit overrides", () => {
   assert.equal(explicitOffConfig.refreshEnabled, false);
 });
 
-test("readBridgeConfig uses only the packaged relay default outside a source checkout", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "remodex-package-"));
+test("readBridgeConfig requires an explicit relay even if a private-defaults file exists", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "icodex-package-"));
   const srcDir = path.join(tempRoot, "src");
   fs.mkdirSync(srcDir, { recursive: true });
   fs.writeFileSync(
@@ -119,12 +119,12 @@ test("readBridgeConfig uses only the packaged relay default outside a source che
     fsImpl: fs,
   });
 
-  assert.equal(config.relayUrl, "wss://relay.example/relay");
+  assert.equal(config.relayUrl, "");
   assert.equal(config.pushServiceUrl, "");
 });
 
-test("readBridgeConfig uses a packaged push default only when it is explicitly provided", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "remodex-package-"));
+test("readBridgeConfig does not derive push defaults from a private-defaults file", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "icodex-package-"));
   const srcDir = path.join(tempRoot, "src");
   fs.mkdirSync(srcDir, { recursive: true });
   fs.writeFileSync(
@@ -142,11 +142,11 @@ test("readBridgeConfig uses a packaged push default only when it is explicitly p
     fsImpl: fs,
   });
 
-  assert.equal(config.relayUrl, "wss://relay.example/relay");
-  assert.equal(config.pushServiceUrl, "https://relay.example");
+  assert.equal(config.relayUrl, "");
+  assert.equal(config.pushServiceUrl, "");
 });
 
-test("readBridgeConfig does not use the hosted fallback inside a source checkout", () => {
+test("readBridgeConfig keeps relay and push empty without explicit config", () => {
   const config = readBridgeConfig({
     env: {},
     runtimeRoot: "/workspace/phodex-bridge",
@@ -164,7 +164,7 @@ test("readBridgeConfig does not use the hosted fallback inside a source checkout
 test("readBridgeConfig preserves reverse-proxy subpaths when deriving push URLs", () => {
   const config = readBridgeConfig({
     env: {
-      REMODEX_PUSH_SERVICE_URL: "https://relay.example/remodex",
+      ICODEX_PUSH_SERVICE_URL: "https://relay.example/icodex",
     },
     runtimeRoot: "/workspace/phodex-bridge",
     fsImpl: {
@@ -174,25 +174,20 @@ test("readBridgeConfig preserves reverse-proxy subpaths when deriving push URLs"
     },
   });
 
-  assert.equal(config.pushServiceUrl, "https://relay.example/remodex");
+  assert.equal(config.pushServiceUrl, "https://relay.example/icodex");
 });
 
-test("readBridgeConfig disables managed push defaults when a self-hosted relay override is set", () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "remodex-package-"));
-  const srcDir = path.join(tempRoot, "src");
-  fs.mkdirSync(srcDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(srcDir, "private-defaults.json"),
-    JSON.stringify({ relayUrl: "wss://relay.example/remodex/relay" }),
-    "utf8"
-  );
-
+test("readBridgeConfig uses the explicit relay env var", () => {
   const config = readBridgeConfig({
     env: {
-      REMODEX_RELAY: "wss://self-host.example/relay",
+      ICODEX_RELAY: "wss://self-host.example/relay",
     },
-    runtimeRoot: tempRoot,
-    fsImpl: fs,
+    runtimeRoot: "/workspace/phodex-bridge",
+    fsImpl: {
+      existsSync() {
+        return false;
+      },
+    },
   });
 
   assert.equal(config.relayUrl, "wss://self-host.example/relay");

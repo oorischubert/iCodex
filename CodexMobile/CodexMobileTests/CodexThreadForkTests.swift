@@ -412,12 +412,12 @@ final class CodexThreadForkTests: XCTestCase {
             XCTFail("Expected thread/fork to fail")
         } catch {
             XCTAssertFalse(service.supportsThreadFork)
-            XCTAssertEqual(service.bridgeUpdatePrompt?.title, "Update Remodex on your Mac to use /fork")
+            XCTAssertEqual(service.bridgeUpdatePrompt?.title, "Update iCodex on your Mac to use /fork")
             XCTAssertEqual(
                 service.bridgeUpdatePrompt?.message,
-                "This Mac bridge does not support native conversation forks yet. Update the Remodex npm package to use /fork and worktree fork flows."
+                "This Mac bridge does not support native conversation forks yet. Update your local iCodex bridge checkout to use /fork and worktree fork flows."
             )
-            XCTAssertEqual(service.bridgeUpdatePrompt?.command, "npm install -g remodex@latest")
+            XCTAssertEqual(service.bridgeUpdatePrompt?.command, AppEnvironment.sourceBridgeUpdateCommand)
         }
     }
 

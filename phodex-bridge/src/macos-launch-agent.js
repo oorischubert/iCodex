@@ -1,7 +1,7 @@
 // FILE: macos-launch-agent.js
-// Purpose: Owns macOS-only launchd install/start/stop/status helpers for the background Remodex bridge.
+// Purpose: Owns macOS-only launchd install/start/stop/status helpers for the background iCodex bridge.
 // Layer: CLI helper
-// Exports: start/stop/status helpers plus the launchd service runner used by `remodex up`.
+// Exports: start/stop/status helpers plus the launchd service runner used by `icodex up`.
 // Depends on: child_process, fs, os, path, ./bridge, ./daemon-state, ./codex-desktop-refresher, ./qr, ./secure-device-state
 
 const { execFileSync } = require("child_process");
@@ -28,7 +28,7 @@ const {
   writePairingSession,
 } = require("./daemon-state");
 
-const SERVICE_LABEL = "com.remodex.bridge";
+const SERVICE_LABEL = "com.icodex.bridge";
 const DEFAULT_PAIRING_WAIT_TIMEOUT_MS = 10_000;
 const DEFAULT_PAIRING_WAIT_INTERVAL_MS = 200;
 
@@ -46,7 +46,7 @@ function runMacOSBridgeService({ env = process.env } = {}) {
       pid: process.pid,
       lastError: message,
     }, { env });
-    console.error(`[remodex] ${message}`);
+    console.error(`[icodex] ${message}`);
     return;
   }
 
@@ -70,7 +70,7 @@ async function startMacOSBridgeService({
   execFileSyncImpl = execFileSync,
   osImpl = os,
   nodePath = process.execPath,
-  cliPath = path.resolve(__dirname, "..", "bin", "remodex.js"),
+  cliPath = path.resolve(__dirname, "..", "bin", "icodex.js"),
   waitForPairing = false,
   pairingTimeoutMs = DEFAULT_PAIRING_WAIT_TIMEOUT_MS,
   pairingPollIntervalMs = DEFAULT_PAIRING_WAIT_INTERVAL_MS,
@@ -179,15 +179,15 @@ function printMacOSBridgeServiceStatus(options = {}) {
   const bridgeState = status.bridgeStatus?.state || "unknown";
   const connectionStatus = status.bridgeStatus?.connectionStatus || "unknown";
   const pairingCreatedAt = status.pairingSession?.createdAt || "none";
-  console.log(`[remodex] Service label: ${status.label}`);
-  console.log(`[remodex] Installed: ${status.installed ? "yes" : "no"}`);
-  console.log(`[remodex] Launchd loaded: ${status.launchdLoaded ? "yes" : "no"}`);
-  console.log(`[remodex] PID: ${status.launchdPid || status.bridgeStatus?.pid || "unknown"}`);
-  console.log(`[remodex] Bridge state: ${bridgeState}`);
-  console.log(`[remodex] Connection: ${connectionStatus}`);
-  console.log(`[remodex] Pairing payload: ${pairingCreatedAt}`);
-  console.log(`[remodex] Stdout log: ${status.stdoutLogPath}`);
-  console.log(`[remodex] Stderr log: ${status.stderrLogPath}`);
+  console.log(`[icodex] Service label: ${status.label}`);
+  console.log(`[icodex] Installed: ${status.installed ? "yes" : "no"}`);
+  console.log(`[icodex] Launchd loaded: ${status.launchdLoaded ? "yes" : "no"}`);
+  console.log(`[icodex] PID: ${status.launchdPid || status.bridgeStatus?.pid || "unknown"}`);
+  console.log(`[icodex] Bridge state: ${bridgeState}`);
+  console.log(`[icodex] Connection: ${connectionStatus}`);
+  console.log(`[icodex] Pairing payload: ${pairingCreatedAt}`);
+  console.log(`[icodex] Stdout log: ${status.stdoutLogPath}`);
+  console.log(`[icodex] Stderr log: ${status.stderrLogPath}`);
 }
 
 function printMacOSBridgePairingQr({ pairingSession = null, env = process.env, fsImpl = fs } = {}) {
@@ -206,7 +206,7 @@ function writeLaunchAgentPlist({
   fsImpl = fs,
   osImpl = os,
   nodePath = process.execPath,
-  cliPath = path.resolve(__dirname, "..", "bin", "remodex.js"),
+  cliPath = path.resolve(__dirname, "..", "bin", "icodex.js"),
 } = {}) {
   const plistPath = resolveLaunchAgentPlistPath({ env, osImpl });
   const stateDir = resolveRemodexStateDir({ env, osImpl });
@@ -264,7 +264,7 @@ function buildLaunchAgentPlist({
     <string>${escapeXml(homeDir)}</string>
     <key>PATH</key>
     <string>${escapeXml(pathEnv)}</string>
-    <key>REMODEX_DEVICE_STATE_DIR</key>
+    <key>ICODEX_DEVICE_STATE_DIR</key>
     <string>${escapeXml(stateDir)}</string>
   </dict>
   <key>StandardOutPath</key>
@@ -388,7 +388,7 @@ function assertRelayConfigured(config) {
   if (typeof config?.relayUrl === "string" && config.relayUrl.trim()) {
     return;
   }
-  throw new Error("No relay URL configured. Run ./run-local-remodex.sh or set REMODEX_RELAY before enabling the macOS bridge service.");
+  throw new Error("No relay URL configured. Set ICODEX_RELAY or REMODEX_RELAY before enabling the macOS bridge service.");
 }
 
 function launchAgentDomain(env) {

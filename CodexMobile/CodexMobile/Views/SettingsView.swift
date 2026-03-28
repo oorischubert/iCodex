@@ -8,7 +8,6 @@ import UIKit
 
 struct SettingsView: View {
     @Environment(CodexService.self) private var codex
-    @Environment(SubscriptionService.self) private var subscriptions
 
     @AppStorage("codex.appFontStyle") private var appFontStyleRawValue = AppFont.defaultStoredStyleRawValue
     @State private var isShowingMacNameSheet = false
@@ -24,7 +23,7 @@ struct SettingsView: View {
                 SettingsAppearanceCard(appFontStyle: appFontStyleBinding)
                 SettingsNotificationsCard()
                 SettingsGPTAccountCard()
-                SettingsSubscriptionCard()
+                SettingsBuildCard()
                 SettingsBridgeVersionCard()
                 runtimeDefaultsSection
                 SettingsAboutCard()
@@ -43,12 +42,6 @@ struct SettingsView: View {
                     systemName: trustedPairPresentation.systemName ?? trustedPairPresentation.name
                 )
             }
-        }
-        .task {
-            guard subscriptions.bootstrapState == .idle else {
-                return
-            }
-            await subscriptions.bootstrap()
         }
     }
 
@@ -279,48 +272,27 @@ struct SettingsView: View {
     }
 }
 
-private struct SettingsSubscriptionCard: View {
-    @Environment(SubscriptionService.self) private var subscriptions
-    @State private var isPresentingPaywall = false
-
+private struct SettingsBuildCard: View {
     var body: some View {
-        SettingsCard(title: "Remodex Pro") {
+        SettingsCard(title: "Open-Source Build") {
             HStack {
-                Text("Status")
+                Text("Access")
                 Spacer()
-                Text(subscriptions.hasProAccess ? "Active" : "Free")
-                    .foregroundStyle(subscriptions.hasProAccess ? .green : .secondary)
+                Text("Unlocked")
+                    .foregroundStyle(.green)
             }
 
-            if subscriptions.hasProAccess {
-                Text("Your Pro access is active. You can still restore purchases or manage your subscription from Apple.")
-                    .font(AppFont.caption())
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Open the custom paywall to choose a monthly or yearly plan.")
-                    .font(AppFont.caption())
-                    .foregroundStyle(.secondary)
-            }
+            Text("This iCodex fork removes in-app purchases. Pair it with a bridge and relay you control, either self-hosted directly or through Tailscale.")
+                .font(AppFont.caption())
+                .foregroundStyle(.secondary)
 
-            SettingsButton(subscriptions.hasProAccess ? "View Pro" : "Upgrade to Pro") {
-                isPresentingPaywall = true
-            }
+            Text(AppEnvironment.sourceBridgeInstallCommand)
+                .font(AppFont.mono(.caption))
+                .textSelection(.enabled)
 
-            SettingsButton(subscriptions.isRestoring ? "Restoring..." : "Restore Purchases", isLoading: subscriptions.isRestoring) {
-                Task {
-                    await subscriptions.restorePurchases()
-                }
-            }
-            .disabled(subscriptions.isPurchasing)
-
-            if let error = subscriptions.lastErrorMessage, !error.isEmpty {
-                Text(error)
-                    .font(AppFont.caption())
-                    .foregroundStyle(.red)
-            }
-        }
-        .sheet(isPresented: $isPresentingPaywall) {
-            RevenueCatPaywallView()
+            Text(AppEnvironment.sourceBridgeStartCommand)
+                .font(AppFont.mono(.caption))
+                .textSelection(.enabled)
         }
     }
 }
@@ -533,6 +505,12 @@ private struct SettingsNotificationsCard: View {
                 .font(AppFont.caption())
                 .foregroundStyle(.secondary)
 
+            if !AppEnvironment.remotePushNotificationsEnabled {
+                Text("Remote push registration is disabled in this source build.")
+                    .font(AppFont.caption())
+                    .foregroundStyle(.secondary)
+            }
+
             if codex.notificationAuthorizationStatus == .notDetermined {
                 SettingsButton("Allow notifications") {
                     HapticFeedback.shared.triggerImpactFeedback()
@@ -722,7 +700,7 @@ private struct SettingsGPTMacLoginSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("ChatGPT voice is checked on your Mac")
                             .font(AppFont.subheadline(weight: .semibold))
-                        Text("Remodex reads the ChatGPT session from your paired Mac bridge.")
+                        Text("iCodex reads the ChatGPT session from your paired Mac bridge.")
                             .font(AppFont.caption())
                             .foregroundStyle(.secondary)
                     }
@@ -741,7 +719,7 @@ private struct SettingsGPTMacLoginSheet: View {
                     )
                     gptSetupStep(
                         number: "3",
-                        title: "Come back to Remodex",
+                        title: "Come back to iCodex",
                         detail: "Keep the bridge connected and reopen Settings if the status has not refreshed yet."
                     )
                 }
@@ -827,27 +805,27 @@ private struct SettingsBridgeVersionCard: View {
     }
 
     private var latestVersionLabel: String {
-        normalizedVersion(codex.latestBridgePackageVersion) ?? "Unknown"
+        normalizedVersion(codex.latestBridgePackageVersion) ?? "Source build"
     }
 
     private var guidanceText: String? {
         guard let installedVersion else {
-            return "Connect to a Mac bridge to read the installed package version."
+            return "Connect to a Mac bridge to read the installed bridge version."
         }
 
         guard let latestVersion else {
-            return "Installed version detected. The latest published package is unavailable right now."
+            return "This iCodex fork does not query a published bridge registry."
         }
 
         if installedVersion == latestVersion {
-            return "The installed bridge matches the latest published package."
+            return "The installed bridge matches the expected bridge build."
         }
 
         if installedVersion.compare(latestVersion, options: .numeric) == .orderedAscending {
-            return "A newer Remodex package is available on npm."
+            return "A newer iCodex bridge build is available."
         }
 
-        return "This Mac is running a different build than the current npm latest."
+        return "This Mac is running a different iCodex bridge build."
     }
 
     private var versionStatusLabel: String {
@@ -856,7 +834,7 @@ private struct SettingsBridgeVersionCard: View {
         }
 
         guard let latestVersion else {
-            return "Installed"
+            return "Source build"
         }
 
         if installedVersion == latestVersion {
@@ -965,7 +943,7 @@ private struct SettingsAboutCard: View {
                 isShowingAbout = true
             } label: {
                 settingsAccessoryRow(
-                    title: "How Remodex Works",
+                    title: "How iCodex Works",
                     leading: {
                         Image(systemName: "info.circle")
                             .font(AppFont.subheadline(weight: .medium))

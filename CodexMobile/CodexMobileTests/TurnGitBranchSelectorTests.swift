@@ -1,5 +1,5 @@
 // FILE: TurnGitBranchSelectorTests.swift
-// Purpose: Verifies new branch creation names normalize toward the remodex/ prefix without double-prefixing.
+// Purpose: Verifies new branch creation names normalize toward the icodex/ prefix without double-prefixing.
 // Layer: Unit Test
 // Exports: TurnGitBranchSelectorTests
 // Depends on: XCTest, CodexMobile
@@ -8,10 +8,10 @@ import XCTest
 @testable import CodexMobile
 
 final class TurnGitBranchSelectorTests: XCTestCase {
-    func testNormalizesCreatedBranchNamesTowardRemodexPrefix() {
-        XCTAssertEqual(remodexNormalizedCreatedBranchName("foo"), "remodex/foo")
-        XCTAssertEqual(remodexNormalizedCreatedBranchName("remodex/foo"), "remodex/foo")
-        XCTAssertEqual(remodexNormalizedCreatedBranchName("  foo  "), "remodex/foo")
+    func testNormalizesCreatedBranchNamesTowardICodexPrefix() {
+        XCTAssertEqual(remodexNormalizedCreatedBranchName("foo"), "icodex/foo")
+        XCTAssertEqual(remodexNormalizedCreatedBranchName("icodex/foo"), "icodex/foo")
+        XCTAssertEqual(remodexNormalizedCreatedBranchName("  foo  "), "icodex/foo")
     }
 
     func testNormalizesEmptyBranchNamesToEmptyString() {
@@ -21,9 +21,9 @@ final class TurnGitBranchSelectorTests: XCTestCase {
     func testCurrentBranchSelectionDisablesCheckedOutElsewhereRowsWhenWorktreePathIsMissing() {
         XCTAssertTrue(
             remodexCurrentBranchSelectionIsDisabled(
-                branch: "remodex/feature-a",
+                branch: "icodex/feature-a",
                 currentBranch: "main",
-                gitBranchesCheckedOutElsewhere: ["remodex/feature-a"],
+                gitBranchesCheckedOutElsewhere: ["icodex/feature-a"],
                 gitWorktreePathsByBranch: [:],
                 allowsSelectingCurrentBranch: true
             )
@@ -33,10 +33,10 @@ final class TurnGitBranchSelectorTests: XCTestCase {
     func testCurrentBranchSelectionKeepsCheckedOutElsewhereRowsEnabledWhenWorktreePathExists() {
         XCTAssertFalse(
             remodexCurrentBranchSelectionIsDisabled(
-                branch: "remodex/feature-a",
+                branch: "icodex/feature-a",
                 currentBranch: "main",
-                gitBranchesCheckedOutElsewhere: ["remodex/feature-a"],
-                gitWorktreePathsByBranch: ["remodex/feature-a": "/tmp/remodex-feature-a"],
+                gitBranchesCheckedOutElsewhere: ["icodex/feature-a"],
+                gitWorktreePathsByBranch: ["icodex/feature-a": "/tmp/icodex-feature-a"],
                 allowsSelectingCurrentBranch: true
             )
         )

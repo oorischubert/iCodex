@@ -544,7 +544,9 @@ extension CodexService {
                 messagesByThread[threadId]?[existingIndex].turnId = turnId
                 didMutate = true
             }
-            if messagesByThread[threadId]?[existingIndex].fileMentions.isEmpty, !fileMentions.isEmpty {
+            if let existingMessage = messagesByThread[threadId]?[existingIndex],
+               existingMessage.fileMentions.isEmpty,
+               !fileMentions.isEmpty {
                 messagesByThread[threadId]?[existingIndex].fileMentions = fileMentions
                 didMutate = true
             }

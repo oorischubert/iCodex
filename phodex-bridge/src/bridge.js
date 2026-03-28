@@ -41,7 +41,7 @@ const RELAY_WATCHDOG_PING_INTERVAL_MS = 10_000;
 const RELAY_WATCHDOG_STALE_AFTER_MS = 25_000;
 const BRIDGE_STATUS_HEARTBEAT_INTERVAL_MS = 5_000;
 const STALE_RELAY_STATUS_MESSAGE = "Relay heartbeat stalled; reconnect pending.";
-const RELAY_HISTORY_IMAGE_REFERENCE_URL = "remodex://history-image-elided";
+const RELAY_HISTORY_IMAGE_REFERENCE_URL = "icodex://history-image-elided";
 
 function startBridge({
   config: explicitConfig = null,
@@ -52,8 +52,8 @@ function startBridge({
   const config = explicitConfig || readBridgeConfig();
   const relayBaseUrl = config.relayUrl.replace(/\/+$/, "");
   if (!relayBaseUrl) {
-    console.error("[remodex] No relay URL configured.");
-    console.error("[remodex] In a source checkout, run ./run-local-remodex.sh or set REMODEX_RELAY.");
+    console.error("[icodex] No relay URL configured.");
+    console.error("[icodex] Set ICODEX_RELAY or REMODEX_RELAY, or start your own relay before launching the bridge.");
     process.exit(1);
   }
 
@@ -61,7 +61,7 @@ function startBridge({
   try {
     deviceState = loadOrCreateBridgeDeviceState();
   } catch (error) {
-    console.error(`[remodex] ${(error && error.message) || "Failed to load the saved bridge pairing state."}`);
+    console.error(`[icodex] ${(error && error.message) || "Failed to load the saved bridge pairing state."}`);
     process.exit(1);
   }
   const relaySession = resolveBridgeRelaySession(deviceState);
@@ -154,11 +154,11 @@ function startBridge({
   const codex = createCodexTransport({
     endpoint: config.codexEndpoint,
     env: process.env,
-    logPrefix: "[remodex]",
+    logPrefix: "[icodex]",
   });
   const voiceHandler = createVoiceHandler({
     sendCodexRequest,
-    logPrefix: "[remodex]",
+    logPrefix: "[icodex]",
   });
   startBridgeStatusHeartbeat();
   publishBridgeStatus({
@@ -176,11 +176,11 @@ function startBridge({
       lastError: error.message,
     });
     if (config.codexEndpoint) {
-      console.error(`[remodex] Failed to connect to Codex endpoint: ${config.codexEndpoint}`);
+      console.error(`[icodex] Failed to connect to Codex endpoint: ${config.codexEndpoint}`);
     } else {
-      console.error("[remodex] Failed to start `codex app-server`.");
-      console.error(`[remodex] Launch command: ${codex.describe()}`);
-      console.error("[remodex] Make sure the Codex CLI is installed and that the launcher works on this OS.");
+      console.error("[icodex] Failed to start `codex app-server`.");
+      console.error(`[icodex] Launch command: ${codex.describe()}`);
+      console.error("[icodex] Make sure the Codex CLI is installed and that the launcher works on this OS.");
     }
     console.error(error.message);
     process.exit(1);
@@ -249,7 +249,7 @@ function startBridge({
       }
 
       if (hasRelayConnectionGoneStale(lastRelayActivityAt)) {
-        console.warn("[remodex] relay heartbeat stalled; forcing reconnect");
+        console.warn("[icodex] relay heartbeat stalled; forcing reconnect");
         logConnectionStatus("disconnected");
         trackedSocket.terminate();
         return;
@@ -277,7 +277,7 @@ function startBridge({
       pid: process.pid,
       lastError: "",
     });
-    console.log(`[remodex] ${status}`);
+    console.log(`[icodex] ${status}`);
   }
 
   // Retries the relay socket while preserving the active Codex process and session id.

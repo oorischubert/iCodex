@@ -7,36 +7,11 @@
 import Foundation
 
 enum AppEnvironment {
-    private static let defaultRelayURLInfoPlistKey = "PHODEX_DEFAULT_RELAY_URL"
-    private static let revenueCatPublicAPIKeyInfoPlistKey = "REVENUECAT_PUBLIC_API_KEY"
-    private static let revenueCatEntitlementNameInfoPlistKey = "REVENUECAT_ENTITLEMENT_NAME"
-    private static let revenueCatDefaultOfferingIDInfoPlistKey = "REVENUECAT_DEFAULT_OFFERING_ID"
-
-    // Open-source builds should provide an explicit relay instead of silently
-    // pointing at a hosted service the user does not control.
-    static let defaultRelayURLString = ""
-
-    static var relayBaseURL: String {
-        if let infoURL = resolvedString(forInfoPlistKey: defaultRelayURLInfoPlistKey) {
-            return infoURL
-        }
-        return defaultRelayURLString
-    }
-
-    // Reads the public RevenueCat key shipped with the client build.
-    static var revenueCatPublicAPIKey: String? {
-        resolvedString(forInfoPlistKey: revenueCatPublicAPIKeyInfoPlistKey)
-    }
-
-    // Keeps entitlement naming centralized so purchase checks stay consistent.
-    static var revenueCatEntitlementName: String {
-        resolvedString(forInfoPlistKey: revenueCatEntitlementNameInfoPlistKey) ?? "Pro"
-    }
-
-    // Mirrors the RevenueCat default offering ID used in the dashboard.
-    static var revenueCatDefaultOfferingID: String {
-        resolvedString(forInfoPlistKey: revenueCatDefaultOfferingIDInfoPlistKey) ?? "default"
-    }
+    static let appName = "iCodex"
+    static let remotePushNotificationsEnabled = false
+    static let sourceBridgeInstallCommand = "cd phodex-bridge && npm install"
+    static let sourceBridgeStartCommand = "cd phodex-bridge && node ./bin/icodex.js up"
+    static let sourceBridgeUpdateCommand = sourceBridgeInstallCommand
 
     // Legal links shown in the paywall footer and Settings.
     // Keep these pointed at a public source-of-truth until the website serves dedicated legal routes.

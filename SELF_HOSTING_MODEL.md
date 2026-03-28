@@ -1,103 +1,43 @@
-# Public Repo and Self-Hosting
+# iCodex Self-Hosting Model
 
-This file explains what the public Remodex repository is for, what it includes, and what it does not include.
+This fork is intentionally source-first and local-first.
 
-If you cloned Remodex from GitHub, the intended path is local-first usage or self-hosting on infrastructure you control.
+## What this repo includes
 
-## What the Public Repo Includes
+- the iPhone app source
+- the Mac bridge source
+- the self-hostable relay source
+- local pairing and self-hosting docs
 
-The public repository includes:
+## What this repo does not include
 
-- the bridge that runs on your Mac
-- the iOS app source code
-- the public relay code
-- local pairing and self-hosting documentation
+- a hosted default relay
+- private publish-time package defaults
+- private deployment runbooks
+- App Store-specific hosted-service assumptions
 
-The public repository is meant to be usable without any private hosted dependency baked into the source tree.
+## Supported operation
 
-## What the Public Repo Does Not Include
+The supported production paths for this fork are:
 
-The public repository does not include:
+1. self-host your own relay
+2. reach that relay over Tailscale or another private network
 
-- a private production relay URL
-- private App Store build defaults
-- private npm publish-time defaults
-- private notification credentials
-- private deployment secrets
+Codex still runs on your Mac. The relay is only the transport layer.
 
-If you are running from source, assume you must provide your own relay setup.
+## Important implications
 
-The public repo now also includes the trusted-Mac reconnect flow, but the built-in background daemon for that flow is currently macOS-only.
+- the bridge must be started with an explicit relay URL
+- the iPhone app should be built from source for your own use
+- public hosted domains should not be assumed anywhere in the repo
+- docs should describe self-hosting and Tailscale, not a managed relay
 
-## The Self-Hosting Path
+## Current defaults
 
-If you use the public repo, you should expect one of these flows:
+- preferred local launcher: `./run-local-icodex.sh`
+- preferred bridge command after `npm link`: `ICODEX_RELAY="..." icodex up`
+- direct source bridge command without `npm link`: `cd phodex-bridge && node ./bin/icodex.js up`
+- preferred relay env var: `ICODEX_RELAY`
+- local bridge state directory: `~/.icodex`
 
-1. Local LAN pairing on your own machine with `./run-local-remodex.sh`
-2. A self-hosted relay on your own VPS, passed in through `REMODEX_RELAY`
-
-That means:
-
-- Codex still runs on your Mac
-- git commands still run on your Mac
-- the iPhone is still a paired remote client
-- the relay is only the transport layer
-- the first QR scan bootstraps trust
-- later reconnects can reuse that trusted Mac over the same relay
-
-For most GitHub users, the easiest first step is:
-
-```sh
-git clone https://github.com/Emanuele-web04/remodex.git
-cd remodex
-./run-local-remodex.sh
-```
-
-For the full public setup guide, read [Docs/self-hosting.md](Docs/self-hosting.md).
-
-If you want the smoothest self-hosted iPhone path, prefer a relay reachable through Tailscale or another stable private network instead of plain LAN-only routing.
-
-## Why the Repo Stays Generic
-
-The public repo stays generic on purpose.
-
-That keeps the self-host path honest:
-
-- people can inspect the transport and pairing code
-- people can run Remodex locally
-- people can self-host their own relay
-- people are not silently tied to someone else's hosted infrastructure
-
-## Official Builds and Published Packages
-
-Official builds or published packages may be configured differently at release time.
-
-For example, an official package may include a default relay chosen during publishing, while the public source checkout stays empty by default.
-
-That does not change the goal of the public repo:
-
-- GitHub source should stay self-host friendly
-- private release configuration should stay out of Git
-
-## What to Keep Private
-
-If you fork or self-host Remodex, keep these things out of the public repo:
-
-- your deployed hostname
-- your VPS IP addresses
-- any APNs credentials
-- any private build overrides
-- any publish-time package defaults
-
-Those belong in your own environment, private config, or release pipeline.
-
-## Short Version
-
-If you cloned Remodex from GitHub:
-
-- do not expect a private hosted relay to be built in
-- use `./run-local-remodex.sh` for local testing
-- use `REMODEX_RELAY` for your own VPS or hosted relay
-- use QR once to trust the Mac, then let reconnect reuse that trust
-- remember that the built-in daemon/background service path is currently macOS-only
-- treat the public repo as the self-hostable version of the project
+`REMODEX_*` env vars remain accepted as compatibility fallbacks where needed, but this fork should document and prefer `ICODEX_*`.
