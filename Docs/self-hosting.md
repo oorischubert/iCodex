@@ -21,21 +21,9 @@ The relay does not run Codex and does not receive plaintext application payloads
 
 ## Option 1: Local Relay
 
-This is useful for local testing.
+This is useful for local testing. On macOS, it is now the default source-install path.
 
-The easiest source-repo path is the launcher from the repo root:
-
-```sh
-./run-local-icodex.sh
-```
-
-That script starts the local relay, points the bridge at it, and runs `icodex up` for you.
-
-Compatibility note:
-
-- `./run-local-remodex.sh` still forwards to `./run-local-icodex.sh`
-
-If you want to run the pieces manually, first install the CLI from source:
+First install the CLI from source:
 
 ```sh
 cd phodex-bridge
@@ -43,7 +31,33 @@ npm install
 npm link
 ```
 
-Then start the relay:
+Then start the managed local relay + bridge service:
+
+```sh
+icodex up
+```
+
+That macOS command:
+
+- starts a local relay on your Mac
+- starts the bridge in the background
+- prints the pairing QR code
+- keeps running after you close the terminal
+
+Useful follow-up commands:
+
+```sh
+icodex status
+icodex stop
+```
+
+If the advertised hostname should be different, override it:
+
+```sh
+ICODEX_LOCAL_RELAY_HOSTNAME="192.168.1.10" icodex up
+```
+
+If you want to run the pieces manually instead, start the relay:
 
 ```sh
 cd relay

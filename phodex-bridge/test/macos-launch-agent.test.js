@@ -20,6 +20,7 @@ const {
 const {
   readBridgeStatus,
   readPairingSession,
+  writeDaemonConfig,
   writeBridgeStatus,
   writePairingSession,
 } = require("../src/daemon-state");
@@ -150,6 +151,42 @@ test("runMacOSBridgeService records a clean error state instead of throwing when
     assert.equal(status?.pid, process.pid);
     assert.equal(status?.lastError, "No relay URL configured for the macOS bridge service.");
     assert.equal(typeof status?.updatedAt, "string");
+  });
+});
+
+test("runMacOSBridgeService starts the managed local relay before the bridge when configured", () => {
+  withTempDaemonEnv(() => {
+    writeDaemonConfig({
+      relayUrl: "ws://Tester-Mac.local:9000/relay",
+      localRelayEnabled: true,
+      localRelayBindHost: "0.0.0.0",
+      localRelayPort: 9000,
+    });
+
+    const events = [];
+    runMacOSBridgeService({
+      env: process.env,
+      createRelayServerImpl() {
+        return {
+          server: {
+            once() {},
+            off() {},
+            listen(port, host, callback) {
+              events.push(["listen", host, port]);
+              callback();
+            },
+          },
+        };
+      },
+      startBridgeImpl({ config }) {
+        events.push(["startBridge", config.relayUrl, config.localRelayEnabled]);
+      },
+    });
+
+    assert.deepEqual(events, [
+      ["listen", "0.0.0.0", 9000],
+      ["startBridge", "ws://Tester-Mac.local:9000/relay", true],
+    ]);
   });
 });
 

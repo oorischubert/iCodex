@@ -10,6 +10,7 @@ const os = require("os");
 const path = require("path");
 const { startBridge } = require("./bridge");
 const { readBridgeConfig } = require("./codex-desktop-refresher");
+const { createRelayServer } = require("../../relay/server");
 const { printQR } = require("./qr");
 const { resetBridgeDeviceState } = require("./secure-device-state");
 const {
@@ -33,7 +34,11 @@ const DEFAULT_PAIRING_WAIT_TIMEOUT_MS = 10_000;
 const DEFAULT_PAIRING_WAIT_INTERVAL_MS = 200;
 
 // Runs the bridge inside launchd while keeping QR rendering in the foreground CLI command.
-function runMacOSBridgeService({ env = process.env } = {}) {
+function runMacOSBridgeService({
+  env = process.env,
+  createRelayServerImpl = createRelayServer,
+  startBridgeImpl = startBridge,
+} = {}) {
   assertDarwinPlatform();
   const config = readDaemonConfig({ env });
   if (!config?.relayUrl) {
@@ -50,14 +55,40 @@ function runMacOSBridgeService({ env = process.env } = {}) {
     return;
   }
 
-  startBridge({
+  const launchBridge = () => {
+    startBridgeImpl({
+      config,
+      printPairingQr: false,
+      onPairingPayload(pairingPayload) {
+        writePairingSession(pairingPayload, { env });
+      },
+      onBridgeStatus(status) {
+        writeBridgeStatus(status, { env });
+      },
+    });
+  };
+
+  if (!config.localRelayEnabled) {
+    launchBridge();
+    return;
+  }
+
+  startManagedLocalRelay({
     config,
-    printPairingQr: false,
-    onPairingPayload(pairingPayload) {
-      writePairingSession(pairingPayload, { env });
+    createRelayServerImpl,
+    onReady() {
+      launchBridge();
     },
-    onBridgeStatus(status) {
-      writeBridgeStatus(status, { env });
+    onError(error) {
+      const message = `Failed to start the managed local relay: ${error.message}`;
+      clearPairingSession({ env });
+      writeBridgeStatus({
+        state: "error",
+        connectionStatus: "error",
+        pid: process.pid,
+        lastError: message,
+      }, { env });
+      console.error(`[icodex] ${message}`);
     },
   });
 }
@@ -167,6 +198,7 @@ function getMacOSBridgeServiceStatus({
     installed: fsImpl.existsSync(resolveLaunchAgentPlistPath({ env })),
     launchdLoaded: launchd.loaded,
     launchdPid: launchd.pid,
+    daemonConfig: readDaemonConfig({ env, fsImpl }),
     bridgeStatus: readBridgeStatus({ env, fsImpl }),
     pairingSession: readPairingSession({ env, fsImpl }),
     stdoutLogPath: resolveBridgeStdoutLogPath({ env }),
@@ -179,10 +211,13 @@ function printMacOSBridgeServiceStatus(options = {}) {
   const bridgeState = status.bridgeStatus?.state || "unknown";
   const connectionStatus = status.bridgeStatus?.connectionStatus || "unknown";
   const pairingCreatedAt = status.pairingSession?.createdAt || "none";
+  const relayMode = status.daemonConfig?.localRelayEnabled ? "managed local relay" : "external relay";
   console.log(`[icodex] Service label: ${status.label}`);
   console.log(`[icodex] Installed: ${status.installed ? "yes" : "no"}`);
   console.log(`[icodex] Launchd loaded: ${status.launchdLoaded ? "yes" : "no"}`);
   console.log(`[icodex] PID: ${status.launchdPid || status.bridgeStatus?.pid || "unknown"}`);
+  console.log(`[icodex] Relay mode: ${relayMode}`);
+  console.log(`[icodex] Relay URL: ${status.daemonConfig?.relayUrl || "none"}`);
   console.log(`[icodex] Bridge state: ${bridgeState}`);
   console.log(`[icodex] Connection: ${connectionStatus}`);
   console.log(`[icodex] Pairing payload: ${pairingCreatedAt}`);
@@ -391,6 +426,45 @@ function assertRelayConfigured(config) {
   throw new Error("No relay URL configured. Set ICODEX_RELAY or REMODEX_RELAY before enabling the macOS bridge service.");
 }
 
+function startManagedLocalRelay({
+  config,
+  createRelayServerImpl = createRelayServer,
+  onReady = () => {},
+  onError = () => {},
+} = {}) {
+  const bindHost = typeof config?.localRelayBindHost === "string" && config.localRelayBindHost.trim()
+    ? config.localRelayBindHost.trim()
+    : "0.0.0.0";
+  const port = Number.isFinite(Number(config?.localRelayPort))
+    ? Number(config.localRelayPort)
+    : 9000;
+  const advertisedUrl = typeof config?.relayUrl === "string" ? config.relayUrl : "";
+  const { server } = createRelayServerImpl();
+  let startupSettled = false;
+
+  const handleStartupError = (error) => {
+    if (startupSettled) {
+      console.error(`[icodex] Local relay error: ${error.message}`);
+      return;
+    }
+    startupSettled = true;
+    onError(error);
+  };
+
+  server.once("error", handleStartupError);
+  server.listen(port, bindHost, () => {
+    if (startupSettled) {
+      return;
+    }
+    startupSettled = true;
+    server.off?.("error", handleStartupError);
+    console.log(`[icodex] Local relay listening on ${bindHost}:${port} (advertised as ${advertisedUrl}).`);
+    onReady({ server });
+  });
+
+  return { server };
+}
+
 function launchAgentDomain(env) {
   return `gui/${resolveUid(env)}`;
 }
@@ -449,6 +523,7 @@ module.exports = {
   resetMacOSBridgePairing,
   resolveLaunchAgentPlistPath,
   runMacOSBridgeService,
+  startManagedLocalRelay,
   startMacOSBridgeService,
   stopMacOSBridgeService,
 };

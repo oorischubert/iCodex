@@ -1,8 +1,7 @@
-<p align="center">
-  <img src="CodexMobile/CodexMobile/Assets.xcassets/remodex-og1.imageset/remodex-og2%20%281%29.png" alt="iCodex" />
-</p>
 
 # iCodex
+
+Fork of the original [Remodex](https://github.com/Emanuele-web04/remodex) project by Emanuele Di Pietro. Thanks to the original creator for building and open-sourcing it.
 
 Control [Codex](https://openai.com/index/codex/) from your iPhone while keeping the actual runtime on your Mac.
 
@@ -22,8 +21,9 @@ This fork does not ship with:
 
 The supported paths are:
 
-1. self-host a relay yourself
-2. expose that relay over Tailscale or another private network
+1. use the managed local relay on your Mac with `icodex up` on macOS
+2. self-host a relay yourself
+3. expose that relay over Tailscale or another private network
 
 ## Architecture
 
@@ -51,7 +51,7 @@ relay/           Self-hostable relay and optional push service
 - Node.js 18+
 - [Codex CLI](https://github.com/openai/codex) installed and working on your Mac
 - Xcode 16+ if you are building the iPhone app from source
-- your own relay deployment, either local or reachable over Tailscale
+- a relay path, either the managed local relay on macOS or your own self-hosted relay
 
 ## iPhone App
 
@@ -79,36 +79,35 @@ npm install
 node ./bin/icodex.js up
 ```
 
-## Local Quick Start
-
-If you want the old all-in-one local test flow back, use the launcher from the repo root:
-
-```sh
-./run-local-icodex.sh
-```
-
-That script:
-
-- installs missing relay and bridge dependencies
-- starts the local relay on port `9000`
-- points the bridge at `ws://<your-host>:9000/relay`
-- runs `icodex up`
-- prints the pairing QR for the iPhone app
-
-Compatibility note:
-
-- `./run-local-remodex.sh` still works and forwards to `./run-local-icodex.sh`
-
-Common options:
-
-```sh
-./run-local-icodex.sh --hostname 192.168.1.10
-./run-local-icodex.sh --bind-host 127.0.0.1 --port 9100
-```
-
 ## Bridge Commands
 
-Start the bridge with an explicit relay URL:
+### macOS default: managed local relay + background bridge
+
+If you do not set `ICODEX_RELAY`, `icodex up` on macOS now starts a managed local relay and the bridge service together. The service keeps running after you close the terminal.
+
+```sh
+icodex up
+```
+
+Useful follow-up commands:
+
+```sh
+icodex status
+icodex stop
+```
+
+By default the managed local relay listens on `0.0.0.0:9000` and advertises a relay URL like `ws://<your-mac>.local:9000/relay` in the QR code.
+
+Optional overrides:
+
+```sh
+ICODEX_LOCAL_RELAY_HOSTNAME="192.168.1.10" icodex up
+ICODEX_LOCAL_RELAY_BIND_HOST="127.0.0.1" ICODEX_LOCAL_RELAY_PORT="9100" icodex up
+```
+
+### External relay
+
+To point the bridge at an explicit relay URL instead, set `ICODEX_RELAY`:
 
 ```sh
 ICODEX_RELAY="ws://127.0.0.1:9000/relay" icodex up
@@ -120,10 +119,10 @@ If you did not run `npm link`, use:
 
 ```sh
 cd phodex-bridge
-ICODEX_RELAY="ws://127.0.0.1:9000/relay" node ./bin/icodex.js up
+node ./bin/icodex.js up
 ```
 
-On macOS, `icodex up` installs or refreshes the background bridge service and prints the QR pairing code. On other platforms, the same command runs in the foreground.
+On macOS, `icodex up` installs or refreshes the background bridge service and prints the QR pairing code. On other platforms, `icodex up` still runs in the foreground and expects an explicit relay URL.
 
 ## Relay Setup
 
@@ -163,17 +162,20 @@ A typical setup is:
 
 ## Quick Start
 
-1. For a fully local setup, run `./run-local-icodex.sh`.
-2. For a self-hosted or Tailscale relay, run `cd phodex-bridge && npm install && npm link`.
-3. Start the bridge with `ICODEX_RELAY="..." icodex up`.
-4. Open the iPhone app.
-5. Scan the QR.
+1. Run `cd phodex-bridge && npm install && npm link`.
+2. On macOS, run `icodex up`.
+3. Open the iPhone app.
+4. Scan the QR.
+5. Close the terminal if you want; the managed macOS service keeps running in the background.
+
+For a Tailscale or other self-hosted relay, set `ICODEX_RELAY="..."` before `icodex up`.
 
 ## Notes
 
 - There is no bundled production relay in this fork.
 - There is no supported global published-package install flow anymore.
 - Source installs support `npm link` so you can use `icodex up` directly.
+- On macOS, `icodex up` defaults to a managed local relay when `ICODEX_RELAY` is unset.
 - The canonical local bridge state now lives under `~/.icodex`.
 - Desktop refresh remains opt-in.
 

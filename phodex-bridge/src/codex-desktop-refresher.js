@@ -6,6 +6,7 @@
 
 const { execFile } = require("child_process");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { createThreadRolloutActivityWatcher } = require("./rollout-watch");
 
@@ -522,10 +523,36 @@ function readBridgeConfig({
   runtimeRoot = path.resolve(__dirname, ".."),
   fsImpl = fs,
 } = {}) {
-  const relayUrl = readFirstDefinedEnv(
+  const explicitRelayUrl = readFirstDefinedEnv(
     ["ICODEX_RELAY", "REMODEX_RELAY", "PHODEX_RELAY"],
     "",
     env
+  );
+  const localRelayOptIn = readOptionalBooleanEnv(
+    ["ICODEX_LOCAL_RELAY", "REMODEX_LOCAL_RELAY"],
+    env
+  );
+  const localRelayEnabled = explicitRelayUrl
+    ? false
+    : (localRelayOptIn == null ? platform === "darwin" : localRelayOptIn);
+  const localRelayPort = parseIntegerEnv(
+    readFirstDefinedEnv(["ICODEX_LOCAL_RELAY_PORT", "REMODEX_LOCAL_RELAY_PORT"], "9000", env),
+    9000
+  );
+  const localRelayBindHost = readFirstDefinedEnv(
+    ["ICODEX_LOCAL_RELAY_BIND_HOST", "REMODEX_LOCAL_RELAY_BIND_HOST"],
+    "0.0.0.0",
+    env
+  );
+  const localRelayAdvertiseHost = readFirstDefinedEnv(
+    ["ICODEX_LOCAL_RELAY_HOSTNAME", "REMODEX_LOCAL_RELAY_HOSTNAME"],
+    defaultLocalRelayHostname({ env, platform }),
+    env
+  );
+  const relayUrl = explicitRelayUrl || (
+    localRelayEnabled
+      ? `ws://${localRelayAdvertiseHost}:${localRelayPort}/relay`
+      : ""
   );
   const codexEndpoint = readFirstDefinedEnv(
     ["ICODEX_CODEX_ENDPOINT", "REMODEX_CODEX_ENDPOINT", "PHODEX_CODEX_ENDPOINT"],
@@ -542,6 +569,10 @@ function readBridgeConfig({
   const defaultRefreshEnabled = false;
   return {
     relayUrl,
+    localRelayEnabled,
+    localRelayBindHost,
+    localRelayAdvertiseHost,
+    localRelayPort,
     pushServiceUrl: readFirstDefinedEnv(
       ["ICODEX_PUSH_SERVICE_URL", "REMODEX_PUSH_SERVICE_URL"],
       "",
@@ -690,6 +721,23 @@ function parseBooleanEnv(value) {
 function parseIntegerEnv(value, fallback) {
   const parsed = Number.parseInt(String(value), 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function defaultLocalRelayHostname({ env = process.env, platform = process.platform } = {}) {
+  const machineName = readFirstDefinedEnv(
+    ["ICODEX_LOCAL_RELAY_MACHINE_NAME", "REMODEX_LOCAL_RELAY_MACHINE_NAME"],
+    os.hostname(),
+    env
+  );
+  if (!machineName) {
+    return "localhost";
+  }
+
+  if (platform === "darwin" && !machineName.includes(".")) {
+    return `${machineName}.local`;
+  }
+
+  return machineName;
 }
 
 function extractErrorMessage(error) {
