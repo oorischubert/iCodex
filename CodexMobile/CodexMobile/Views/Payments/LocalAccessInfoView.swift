@@ -1,12 +1,12 @@
-// FILE: RevenueCatPaywallView.swift
-// Purpose: Preserves the existing paywall entrypoint as a simple info sheet for the open-source iCodex fork.
+// FILE: LocalAccessInfoView.swift
+// Purpose: Presents local setup information for the unlocked open-source iCodex fork.
 // Layer: View
-// Exports: RevenueCatPaywallView
+// Exports: LocalAccessInfoView
 // Depends on: SwiftUI
 
 import SwiftUI
 
-struct RevenueCatPaywallView: View {
+struct LocalAccessInfoView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {

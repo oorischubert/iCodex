@@ -13,7 +13,21 @@ enum AppEnvironment {
     static let sourceBridgeStartCommand = "cd phodex-bridge && node ./bin/icodex.js up"
     static let sourceBridgeUpdateCommand = sourceBridgeInstallCommand
 
-    // Legal links shown in the paywall footer and Settings.
+    private static let defaultRelayURLInfoPlistKey = "PHODEX_DEFAULT_RELAY_URL"
+    private static let supportEmailAddress = "emandipietro@gmail.com"
+
+    // Open-source builds should provide an explicit relay instead of silently
+    // pointing at a hosted service the user does not control.
+    static let defaultRelayURLString = ""
+
+    static var relayBaseURL: String {
+        if let infoURL = resolvedString(forInfoPlistKey: defaultRelayURLInfoPlistKey) {
+            return infoURL
+        }
+        return defaultRelayURLString
+    }
+
+    // Legal links shown in Settings.
     // Keep these pointed at a public source-of-truth until the website serves dedicated legal routes.
     static let privacyPolicyURL = URL(
         string: "https://github.com/Emanuele-web04/remodex/blob/main/Legal/PRIVACY_POLICY.md"
@@ -21,6 +35,17 @@ enum AppEnvironment {
     static let termsOfUseURL = URL(
         string: "https://github.com/Emanuele-web04/remodex/blob/main/Legal/TERMS_OF_USE.md"
     )!
+
+    // Powers in-app feedback actions so every entry point targets the same inbox.
+    static var feedbackMailtoURL: URL {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = supportEmailAddress
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: "Share Feedback on iCodex with the Developer")
+        ]
+        return components.url!
+    }
 }
 
 private extension AppEnvironment {

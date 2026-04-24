@@ -2,12 +2,13 @@
 // Purpose: Debounced Mac desktop refresh controller for Codex.app after phone-authored conversation changes.
 // Layer: CLI helper
 // Exports: CodexDesktopRefresher, readBridgeConfig
-// Depends on: child_process, path, ./rollout-watch
+// Depends on: child_process, path, ./rollout-watch, ./daemon-state
 
 const { execFile } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { readDaemonConfig } = require("./daemon-state");
 const { createThreadRolloutActivityWatcher } = require("./rollout-watch");
 
 const DEFAULT_BUNDLE_ID = "com.openai.codex";
@@ -28,7 +29,7 @@ class CodexDesktopRefresher {
     refreshCommand = "",
     bundleId = DEFAULT_BUNDLE_ID,
     appPath = DEFAULT_APP_PATH,
-    logPrefix = "[icodex]",
+    logPrefix = "[remodex]",
     fallbackNewThreadMs = DEFAULT_FALLBACK_NEW_THREAD_MS,
     midRunRefreshThrottleMs = DEFAULT_MID_RUN_REFRESH_THROTTLE_MS,
     rolloutLookupTimeoutMs = DEFAULT_ROLLOUT_LOOKUP_TIMEOUT_MS,
@@ -370,7 +371,7 @@ class CodexDesktopRefresher {
     this.fallbackTimer = null;
   }
 
-  // Keeps one lightweight rollout watcher alive for the current iCodex-controlled thread.
+  // Keeps one lightweight rollout watcher alive for the current Remodex-controlled thread.
   ensureWatcher(threadId) {
     if (!this.canRefresh() || !threadId) {
       return;
@@ -522,84 +523,185 @@ function readBridgeConfig({
   platform = process.platform,
   runtimeRoot = path.resolve(__dirname, ".."),
   fsImpl = fs,
+  osImpl = os,
 } = {}) {
+  const daemonConfig = readDaemonConfig({ env, fsImpl }) || {};
+  const privateDefaults = readPrivatePackageDefaults({ runtimeRoot, fsImpl });
+  const sourceCheckout = isSourceCheckout(runtimeRoot, fsImpl);
+  const defaultRelayUrl = sourceCheckout
+    ? ""
+    : privateDefaults.relayUrl;
   const explicitRelayUrl = readFirstDefinedEnv(
     ["ICODEX_RELAY", "REMODEX_RELAY", "PHODEX_RELAY"],
     "",
     env
   );
-  const localRelayOptIn = readOptionalBooleanEnv(
-    ["ICODEX_LOCAL_RELAY", "REMODEX_LOCAL_RELAY"],
+  const managedLocalRelay = !explicitRelayUrl && !defaultRelayUrl && platform === "darwin"
+    ? resolveManagedLocalRelayConfig({ env, osImpl })
+    : null;
+  const relayUrl = readFirstDefinedEnv(
+    ["ICODEX_RELAY", "REMODEX_RELAY", "PHODEX_RELAY"],
+    managedLocalRelay?.relayUrl || defaultRelayUrl,
     env
   );
-  const localRelayEnabled = explicitRelayUrl
-    ? false
-    : (localRelayOptIn == null ? platform === "darwin" : localRelayOptIn);
-  const localRelayPort = parseIntegerEnv(
-    readFirstDefinedEnv(["ICODEX_LOCAL_RELAY_PORT", "REMODEX_LOCAL_RELAY_PORT"], "9000", env),
-    9000
-  );
-  const localRelayBindHost = readFirstDefinedEnv(
-    ["ICODEX_LOCAL_RELAY_BIND_HOST", "REMODEX_LOCAL_RELAY_BIND_HOST"],
-    "0.0.0.0",
-    env
-  );
-  const localRelayAdvertiseHost = readFirstDefinedEnv(
-    ["ICODEX_LOCAL_RELAY_HOSTNAME", "REMODEX_LOCAL_RELAY_HOSTNAME"],
-    defaultLocalRelayHostname({ env, platform }),
-    env
-  );
-  const localRelayAdvertiseHosts = resolveLocalRelayAdvertiseHosts({
-    env,
-    platform,
-    primaryHost: localRelayAdvertiseHost,
-  });
-  const relayUrl = explicitRelayUrl || (
-    localRelayEnabled
-      ? `ws://${localRelayAdvertiseHosts[0]}:${localRelayPort}/relay`
-      : ""
-  );
+  const defaultPushServiceUrl = sourceCheckout || explicitRelayUrl
+    ? ""
+    : privateDefaults.pushServiceUrl;
   const codexEndpoint = readFirstDefinedEnv(
-    ["ICODEX_CODEX_ENDPOINT", "REMODEX_CODEX_ENDPOINT", "PHODEX_CODEX_ENDPOINT"],
+    ["REMODEX_CODEX_ENDPOINT", "PHODEX_CODEX_ENDPOINT"],
     "",
     env
   );
   const refreshCommand = readFirstDefinedEnv(
-    ["ICODEX_REFRESH_COMMAND", "REMODEX_REFRESH_COMMAND", "PHODEX_ON_PHONE_MESSAGE"],
+    ["REMODEX_REFRESH_COMMAND", "PHODEX_ON_PHONE_MESSAGE"],
     "",
     env
   );
-  const explicitRefreshEnabled = readOptionalBooleanEnv(["ICODEX_REFRESH_ENABLED", "REMODEX_REFRESH_ENABLED"], env);
+  const explicitRefreshEnabled = readOptionalBooleanEnv(["REMODEX_REFRESH_ENABLED"], env);
+  const explicitKeepMacAwakeEnabled = readOptionalBooleanEnv(["REMODEX_KEEP_MAC_AWAKE"], env);
+  const persistedKeepMacAwakeEnabled = typeof daemonConfig.keepMacAwakeEnabled === "boolean"
+    ? daemonConfig.keepMacAwakeEnabled
+    : null;
   // Desktop refresh is opt-in for now because Codex.app still lacks true live updates.
   const defaultRefreshEnabled = false;
   return {
     relayUrl,
-    localRelayEnabled,
-    localRelayBindHost,
-    localRelayAdvertiseHost,
-    localRelayAdvertiseHosts,
-    localRelayPort,
+    relayUrls: managedLocalRelay?.relayUrls || [],
+    localRelay: managedLocalRelay?.localRelay || null,
     pushServiceUrl: readFirstDefinedEnv(
       ["ICODEX_PUSH_SERVICE_URL", "REMODEX_PUSH_SERVICE_URL"],
-      "",
+      defaultPushServiceUrl,
       env
     ),
     pushPreviewMaxChars: parseIntegerEnv(
-      readFirstDefinedEnv(["ICODEX_PUSH_PREVIEW_MAX_CHARS", "REMODEX_PUSH_PREVIEW_MAX_CHARS"], "160", env),
+      readFirstDefinedEnv(["REMODEX_PUSH_PREVIEW_MAX_CHARS"], "160", env),
       160
     ),
     refreshEnabled: explicitRefreshEnabled == null
       ? defaultRefreshEnabled
       : explicitRefreshEnabled,
     refreshDebounceMs: parseIntegerEnv(
-      readFirstDefinedEnv(["ICODEX_REFRESH_DEBOUNCE_MS", "REMODEX_REFRESH_DEBOUNCE_MS"], String(DEFAULT_DEBOUNCE_MS), env),
+      readFirstDefinedEnv(["REMODEX_REFRESH_DEBOUNCE_MS"], String(DEFAULT_DEBOUNCE_MS), env),
       DEFAULT_DEBOUNCE_MS
     ),
+    keepMacAwakeEnabled: explicitKeepMacAwakeEnabled == null
+      ? (persistedKeepMacAwakeEnabled == null ? true : persistedKeepMacAwakeEnabled)
+      : explicitKeepMacAwakeEnabled,
     codexEndpoint,
     refreshCommand,
-    codexBundleId: readFirstDefinedEnv(["ICODEX_CODEX_BUNDLE_ID", "REMODEX_CODEX_BUNDLE_ID"], DEFAULT_BUNDLE_ID, env),
+    codexBundleId: readFirstDefinedEnv(["REMODEX_CODEX_BUNDLE_ID"], DEFAULT_BUNDLE_ID, env),
     codexAppPath: DEFAULT_APP_PATH,
   };
+}
+
+function resolveManagedLocalRelayConfig({ env = process.env, osImpl = os } = {}) {
+  const bindHost = readFirstDefinedEnv(
+    ["ICODEX_LOCAL_RELAY_BIND_HOST", "REMODEX_LOCAL_RELAY_BIND_HOST"],
+    "0.0.0.0",
+    env
+  );
+  const port = parseIntegerEnv(
+    readFirstDefinedEnv(["ICODEX_LOCAL_RELAY_PORT", "REMODEX_LOCAL_RELAY_PORT"], "9000", env),
+    9000
+  );
+  const advertisedHost = readFirstDefinedEnv(
+    ["ICODEX_LOCAL_RELAY_HOSTNAME", "REMODEX_LOCAL_RELAY_HOSTNAME"],
+    defaultLocalRelayHostname({ osImpl }),
+    env
+  );
+  const relayUrl = `ws://${formatRelayHost(advertisedHost)}:${port}/relay`;
+  const relayUrls = [relayUrl];
+  const includeTailscale = readOptionalBooleanEnv([
+    "ICODEX_LOCAL_RELAY_INCLUDE_TAILSCALE",
+    "REMODEX_LOCAL_RELAY_INCLUDE_TAILSCALE",
+  ], env) !== false;
+  const tailscaleHost = includeTailscale
+    ? readFirstDefinedEnv(
+      ["ICODEX_LOCAL_RELAY_TAILSCALE_HOST", "REMODEX_LOCAL_RELAY_TAILSCALE_HOST"],
+      detectTailscaleHost({ osImpl }),
+      env
+    )
+    : "";
+
+  if (tailscaleHost && tailscaleHost !== advertisedHost) {
+    relayUrls.push(`ws://${formatRelayHost(tailscaleHost)}:${port}/relay`);
+  }
+
+  return {
+    relayUrl,
+    relayUrls,
+    localRelay: {
+      enabled: true,
+      bindHost,
+      port,
+    },
+  };
+}
+
+function defaultLocalRelayHostname({ osImpl = os } = {}) {
+  const host = readString(osImpl.hostname?.());
+  if (!host) {
+    return "localhost";
+  }
+  return host.includes(".") ? host : `${host}.local`;
+}
+
+function detectTailscaleHost({ osImpl = os } = {}) {
+  const interfaces = osImpl.networkInterfaces?.() || {};
+  for (const addresses of Object.values(interfaces)) {
+    for (const address of addresses || []) {
+      const ip = address?.address;
+      if (address?.family === "IPv4" && isTailscaleIPv4(ip)) {
+        return ip;
+      }
+    }
+  }
+  return "";
+}
+
+function isTailscaleIPv4(value) {
+  const parts = typeof value === "string"
+    ? value.split(".").map((part) => Number.parseInt(part, 10))
+    : [];
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+  return parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127;
+}
+
+function formatRelayHost(host) {
+  const value = readString(host) || "localhost";
+  return value.includes(":") && !value.startsWith("[") ? `[${value}]` : value;
+}
+
+function readPrivatePackageDefaults({ runtimeRoot, fsImpl }) {
+  const defaultsPath = path.join(runtimeRoot, "src", "private-defaults.json");
+  if (!fsImpl.existsSync(defaultsPath)) {
+    return {
+      relayUrl: "",
+      pushServiceUrl: "",
+    };
+  }
+
+  try {
+    const parsed = safeParseJSON(fsImpl.readFileSync(defaultsPath, "utf8"));
+    return {
+      relayUrl: readString(parsed?.relayUrl) || "",
+      pushServiceUrl: readString(parsed?.pushServiceUrl) || "",
+    };
+  } catch {
+    return {
+      relayUrl: "",
+      pushServiceUrl: "",
+    };
+  }
+}
+
+// Keeps repo checkouts local-first while published npm installs can stay ready-to-run.
+function isSourceCheckout(runtimeRoot, fsImpl) {
+  const repoRoot = path.resolve(runtimeRoot, "..");
+  return path.basename(runtimeRoot) === "phodex-bridge"
+    && fsImpl.existsSync(path.join(repoRoot, ".git"));
 }
 
 function execFilePromise(command, args) {
@@ -727,99 +829,6 @@ function parseBooleanEnv(value) {
 function parseIntegerEnv(value, fallback) {
   const parsed = Number.parseInt(String(value), 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function defaultLocalRelayHostname({ env = process.env, platform = process.platform } = {}) {
-  const machineName = readFirstDefinedEnv(
-    ["ICODEX_LOCAL_RELAY_MACHINE_NAME", "REMODEX_LOCAL_RELAY_MACHINE_NAME"],
-    os.hostname(),
-    env
-  );
-  if (!machineName) {
-    return "localhost";
-  }
-
-  if (platform === "darwin" && !machineName.includes(".")) {
-    return `${machineName}.local`;
-  }
-
-  return machineName;
-}
-
-function resolveLocalRelayAdvertiseHosts({
-  env = process.env,
-  platform = process.platform,
-  primaryHost = defaultLocalRelayHostname({ env, platform }),
-} = {}) {
-  const hosts = [];
-  const addHost = (value) => {
-    const normalized = normalizeAdvertiseHost(value);
-    if (!normalized || hosts.includes(normalized)) {
-      return;
-    }
-    hosts.push(normalized);
-  };
-
-  addHost(primaryHost);
-
-  const includeTailscale = readOptionalBooleanEnv(
-    ["ICODEX_LOCAL_RELAY_INCLUDE_TAILSCALE", "REMODEX_LOCAL_RELAY_INCLUDE_TAILSCALE"],
-    env
-  );
-  if (includeTailscale === false) {
-    return hosts.length ? hosts : ["localhost"];
-  }
-
-  const explicitTailscaleHost = readFirstDefinedEnv(
-    ["ICODEX_LOCAL_RELAY_TAILSCALE_HOST", "REMODEX_LOCAL_RELAY_TAILSCALE_HOST"],
-    "",
-    env
-  );
-  addHost(explicitTailscaleHost);
-
-  for (const tailnetAddress of detectTailscaleAddresses()) {
-    addHost(tailnetAddress);
-  }
-
-  return hosts.length ? hosts : ["localhost"];
-}
-
-function detectTailscaleAddresses(networkInterfaces = os.networkInterfaces()) {
-  const results = [];
-  for (const [interfaceName, addresses] of Object.entries(networkInterfaces || {})) {
-    if (!Array.isArray(addresses)) {
-      continue;
-    }
-
-    const isTailscaleInterface = String(interfaceName).toLowerCase().startsWith("tailscale");
-    for (const entry of addresses) {
-      if (!entry || entry.family !== "IPv4" || entry.internal || !entry.address) {
-        continue;
-      }
-
-      if (isTailscaleInterface || isLikelyTailscaleIPv4(entry.address)) {
-        if (!results.includes(entry.address)) {
-          results.push(entry.address);
-        }
-      }
-    }
-  }
-  return results;
-}
-
-function isLikelyTailscaleIPv4(address) {
-  const octets = String(address).split(".").map((value) => Number.parseInt(value, 10));
-  if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
-    return false;
-  }
-
-  const [first, second] = octets;
-  return first === 100 && second >= 64 && second <= 127;
-}
-
-function normalizeAdvertiseHost(value) {
-  const normalized = String(value || "").trim();
-  return normalized || "";
 }
 
 function extractErrorMessage(error) {

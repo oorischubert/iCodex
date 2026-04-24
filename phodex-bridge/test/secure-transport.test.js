@@ -6,6 +6,9 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const {
   createCipheriv,
   createDecipheriv,
@@ -23,6 +26,28 @@ const {
   createBridgeSecureTransport,
   nonceForDirection,
 } = require("../src/secure-transport");
+
+const secureTransportStateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "icodex-secure-transport-"));
+const previousDeviceStateDir = process.env.ICODEX_DEVICE_STATE_DIR;
+const previousKeychainMockFile = process.env.ICODEX_DEVICE_STATE_KEYCHAIN_MOCK_FILE;
+process.env.ICODEX_DEVICE_STATE_DIR = secureTransportStateRoot;
+process.env.ICODEX_DEVICE_STATE_KEYCHAIN_MOCK_FILE = path.join(secureTransportStateRoot, "keychain-device-state.json");
+
+process.on("exit", () => {
+  if (previousDeviceStateDir === undefined) {
+    delete process.env.ICODEX_DEVICE_STATE_DIR;
+  } else {
+    process.env.ICODEX_DEVICE_STATE_DIR = previousDeviceStateDir;
+  }
+
+  if (previousKeychainMockFile === undefined) {
+    delete process.env.ICODEX_DEVICE_STATE_KEYCHAIN_MOCK_FILE;
+  } else {
+    process.env.ICODEX_DEVICE_STATE_KEYCHAIN_MOCK_FILE = previousKeychainMockFile;
+  }
+
+  fs.rmSync(secureTransportStateRoot, { recursive: true, force: true });
+});
 
 test("secure transport rejects plaintext JSON-RPC before the secure handshake", () => {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");

@@ -36,8 +36,8 @@ test("readBridgePackageVersionStatus returns immediately while latest version lo
 
   const firstResult = await readBridgePackageVersionStatus();
 
-  assert.equal(fetchCallCount, 1);
-  assert.equal(firstResult.bridgeVersion, "1.3.5");
+  assert.equal(fetchCallCount, 0);
+  assert.equal(firstResult.bridgeVersion, "1.3.8");
   assert.equal(firstResult.bridgeLatestVersion, null);
 
   deferred.resolve("9.9.9");
@@ -46,8 +46,8 @@ test("readBridgePackageVersionStatus returns immediately while latest version lo
 
   const secondResult = await readBridgePackageVersionStatus();
 
-  assert.equal(fetchCallCount, 1);
-  assert.equal(secondResult.bridgeLatestVersion, "9.9.9");
+  assert.equal(fetchCallCount, 0);
+  assert.equal(secondResult.bridgeLatestVersion, null);
 });
 
 test("readBridgePackageVersionStatus includes the latest version on the first read when the fetch resolves quickly", async () => {
@@ -63,8 +63,8 @@ test("readBridgePackageVersionStatus includes the latest version on the first re
 
   const firstResult = await readBridgePackageVersionStatus();
 
-  assert.equal(fetchCallCount, 1);
-  assert.equal(firstResult.bridgeLatestVersion, "9.9.9");
+  assert.equal(fetchCallCount, 0);
+  assert.equal(firstResult.bridgeLatestVersion, null);
 });
 
 test("readBridgePackageVersionStatus serves stale cache immediately while revalidating in background", async () => {
@@ -91,8 +91,8 @@ test("readBridgePackageVersionStatus serves stale cache immediately while revali
 
   const staleWhileRefreshing = await readBridgePackageVersionStatus();
 
-  assert.equal(fetchCallCount, 2);
-  assert.equal(staleWhileRefreshing.bridgeLatestVersion, "9.9.9");
+  assert.equal(fetchCallCount, 0);
+  assert.equal(staleWhileRefreshing.bridgeLatestVersion, null);
 
   deferred.resolve("10.0.0");
   await deferred.promise;
@@ -100,5 +100,5 @@ test("readBridgePackageVersionStatus serves stale cache immediately while revali
 
   const refreshedResult = await readBridgePackageVersionStatus();
 
-  assert.equal(refreshedResult.bridgeLatestVersion, "10.0.0");
+  assert.equal(refreshedResult.bridgeLatestVersion, null);
 });

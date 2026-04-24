@@ -12,34 +12,35 @@ const path = require("path");
 const {
   buildLaunchAgentPlist,
   getMacOSBridgeServiceStatus,
+  mergeBridgeStatusForDaemon,
   resetMacOSBridgePairing,
   resolveLaunchAgentPlistPath,
   runMacOSBridgeService,
   stopMacOSBridgeService,
 } = require("../src/macos-launch-agent");
 const {
+  writeDaemonConfig,
   readBridgeStatus,
   readPairingSession,
-  writeDaemonConfig,
   writeBridgeStatus,
   writePairingSession,
 } = require("../src/daemon-state");
 
-test("buildLaunchAgentPlist points launchd at run-service with icodex state paths", () => {
+test("buildLaunchAgentPlist points launchd at run-service with remodex state paths", () => {
   const plist = buildLaunchAgentPlist({
     homeDir: "/Users/tester",
     pathEnv: "/usr/local/bin:/usr/bin",
-    stateDir: "/Users/tester/.icodex",
-    stdoutLogPath: "/Users/tester/.icodex/logs/bridge.stdout.log",
-    stderrLogPath: "/Users/tester/.icodex/logs/bridge.stderr.log",
+    stateDir: "/Users/tester/.remodex",
+    stdoutLogPath: "/Users/tester/.remodex/logs/bridge.stdout.log",
+    stderrLogPath: "/Users/tester/.remodex/logs/bridge.stderr.log",
     nodePath: "/usr/local/bin/node",
-    cliPath: "/tmp/icodex/bin/icodex.js",
+    cliPath: "/tmp/remodex/bin/remodex.js",
   });
 
-  assert.match(plist, /<string>com\.icodex\.bridge<\/string>/);
+  assert.match(plist, /<string>com\.remodex\.bridge<\/string>/);
   assert.match(plist, /<string>run-service<\/string>/);
   assert.match(plist, /<key>KeepAlive<\/key>\s*<dict>\s*<key>SuccessfulExit<\/key>\s*<false\/>\s*<\/dict>/);
-  assert.match(plist, /<key>ICODEX_DEVICE_STATE_DIR<\/key>/);
+  assert.match(plist, /<key>REMODEX_DEVICE_STATE_DIR<\/key>/);
 });
 
 test("resolveLaunchAgentPlistPath writes into the user's LaunchAgents folder", () => {
@@ -48,7 +49,7 @@ test("resolveLaunchAgentPlistPath writes into the user's LaunchAgents folder", (
       env: { HOME: "/Users/tester" },
       osImpl: { homedir: () => "/Users/fallback" },
     }),
-    path.join("/Users/tester", "Library", "LaunchAgents", "com.icodex.bridge.plist")
+    path.join("/Users/tester", "Library", "LaunchAgents", "com.remodex.bridge.plist")
   );
 });
 
@@ -93,14 +94,14 @@ test("stopMacOSBridgeService falls back to label bootout when plist bootout fail
         [
           "bootout",
           `gui/${process.getuid()}`,
-          path.join(process.env.HOME, "Library", "LaunchAgents", "com.icodex.bridge.plist"),
+          path.join(process.env.HOME, "Library", "LaunchAgents", "com.remodex.bridge.plist"),
         ],
       ],
       [
         "launchctl",
         [
           "bootout",
-          `gui/${process.getuid()}/com.icodex.bridge`,
+          `gui/${process.getuid()}/com.remodex.bridge`,
         ],
       ],
     ]);
@@ -154,54 +155,86 @@ test("runMacOSBridgeService records a clean error state instead of throwing when
   });
 });
 
-test("runMacOSBridgeService starts the managed local relay before the bridge when configured", () => {
-  withTempDaemonEnv(() => {
-    writeDaemonConfig({
-      relayUrl: "ws://Tester-Mac.local:9000/relay",
-      localRelayEnabled: true,
-      localRelayBindHost: "0.0.0.0",
-      localRelayPort: 9000,
-    });
-
-    const events = [];
-    runMacOSBridgeService({
-      env: process.env,
-      createRelayServerImpl() {
-        return {
-          server: {
-            once() {},
-            off() {},
-            listen(port, host, callback) {
-              events.push(["listen", host, port]);
-              callback();
-            },
-          },
-        };
+test("mergeBridgeStatusForDaemon keeps the last fatal startup error visible during reconnect loops", () => {
+  assert.deepEqual(
+    mergeBridgeStatusForDaemon(
+      {
+        state: "running",
+        connectionStatus: "connecting",
+        pid: 27479,
+        lastError: "",
+        codexLaunchState: "starting",
       },
-      startBridgeImpl({ config }) {
-        events.push(["startBridge", config.relayUrl, config.localRelayEnabled]);
-      },
-    });
+      {
+        state: "error",
+        connectionStatus: "error",
+        pid: 27479,
+        lastError: "spawn codex ENOENT",
+      }
+    ),
+    {
+      state: "running",
+      connectionStatus: "connecting",
+      pid: 27479,
+      lastError: "spawn codex ENOENT",
+      codexLaunchState: "starting",
+    }
+  );
+});
 
-    assert.deepEqual(events, [
-      ["listen", "0.0.0.0", 9000],
-      ["startBridge", "ws://Tester-Mac.local:9000/relay", true],
-    ]);
-  });
+test("mergeBridgeStatusForDaemon clears preserved errors once the bridge is actually connected", () => {
+  const connectedStatus = {
+    state: "running",
+    connectionStatus: "connected",
+    pid: 27479,
+    lastError: "",
+  };
+
+  assert.deepEqual(
+    mergeBridgeStatusForDaemon(connectedStatus, {
+      state: "error",
+      connectionStatus: "error",
+      pid: 27479,
+      lastError: "spawn codex ENOENT",
+    }),
+    connectedStatus
+  );
+});
+
+test("mergeBridgeStatusForDaemon stops preserving startup errors once Codex has launched", () => {
+  const reconnectingStatus = {
+    state: "running",
+    connectionStatus: "connecting",
+    pid: 27479,
+    lastError: "",
+    codexLaunchState: "connected",
+  };
+
+  assert.deepEqual(
+    mergeBridgeStatusForDaemon(reconnectingStatus, {
+      state: "error",
+      connectionStatus: "error",
+      pid: 27479,
+      lastError: "spawn codex ENOENT",
+      codexLaunchState: "error",
+    }),
+    reconnectingStatus
+  );
 });
 
 test("getMacOSBridgeServiceStatus reports launchd + runtime metadata together", () => {
   withTempDaemonEnv(({ rootDir }) => {
+    writeDaemonConfig({ relayUrl: "ws://127.0.0.1:9000/relay" });
     writePairingSession({ sessionId: "session-2" });
     writeBridgeStatus({ state: "running", connectionStatus: "connected", pid: 55 });
 
-    const plistPath = path.join(rootDir, "LaunchAgents", "com.icodex.bridge.plist");
+    const plistPath = path.join(rootDir, "LaunchAgents", "com.remodex.bridge.plist");
     fs.mkdirSync(path.dirname(plistPath), { recursive: true });
     fs.writeFileSync(plistPath, "plist");
 
     const status = getMacOSBridgeServiceStatus({
       platform: "darwin",
-      env: { HOME: rootDir, ICODEX_DEVICE_STATE_DIR: rootDir },
+      env: { HOME: rootDir, REMODEX_DEVICE_STATE_DIR: rootDir },
       execFileSyncImpl() {
         return "pid = 55";
       },
@@ -209,25 +242,26 @@ test("getMacOSBridgeServiceStatus reports launchd + runtime metadata together", 
 
     assert.equal(status.launchdLoaded, true);
     assert.equal(status.launchdPid, 55);
+    assert.equal(status.daemonConfig?.relayUrl, "ws://127.0.0.1:9000/relay");
     assert.equal(status.bridgeStatus?.connectionStatus, "connected");
     assert.equal(status.pairingSession?.pairingPayload?.sessionId, "session-2");
   });
 });
 
 function withTempDaemonEnv(run) {
-  const previousDir = process.env.ICODEX_DEVICE_STATE_DIR;
+  const previousDir = process.env.REMODEX_DEVICE_STATE_DIR;
   const previousHome = process.env.HOME;
-  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "icodex-launch-agent-"));
-  process.env.ICODEX_DEVICE_STATE_DIR = rootDir;
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "remodex-launch-agent-"));
+  process.env.REMODEX_DEVICE_STATE_DIR = rootDir;
   process.env.HOME = rootDir;
 
   try {
     return run({ rootDir });
   } finally {
     if (previousDir === undefined) {
-      delete process.env.ICODEX_DEVICE_STATE_DIR;
+      delete process.env.REMODEX_DEVICE_STATE_DIR;
     } else {
-      process.env.ICODEX_DEVICE_STATE_DIR = previousDir;
+      process.env.REMODEX_DEVICE_STATE_DIR = previousDir;
     }
     if (previousHome === undefined) {
       delete process.env.HOME;

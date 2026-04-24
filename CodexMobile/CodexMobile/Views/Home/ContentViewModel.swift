@@ -49,16 +49,15 @@ final class ContentViewModel {
     // Connects to the relay WebSocket using a scanned QR code payload.
     func connectToRelay(pairingPayload: CodexPairingQRPayload, codex: CodexService) async {
         await stopAutoReconnectForManualScan(codex: codex)
+        // Avoid logging live pairing metadata; the relay URL path includes a bearer-like session id.
+        let fullURL = "\(pairingPayload.relay)/\(pairingPayload.sessionId)"
         codex.rememberRelayPairing(pairingPayload)
 
         do {
             try await connectWithAutoRecovery(
                 codex: codex,
-                serverURLs: fullRelayURLs(
-                    relayBaseURLs: pairingPayload.relayBaseURLs,
-                    sessionId: pairingPayload.sessionId
-                ),
-                performAutoRetry: true
+                performAutoRetry: true,
+                serverURLProvider: { fullURL }
             )
         } catch {
             if codex.lastErrorMessage?.isEmpty ?? true {
@@ -90,22 +89,12 @@ final class ContentViewModel {
             codex.connectionRecoveryState = .idle
             return
         }
-
-        guard let fullURLs = await preferredReconnectURLs(codex: codex) else {
-            codex.connectionRecoveryState = .idle
-            return
-        }
-
-        guard shouldContinueManualReconnect else {
-            codex.connectionRecoveryState = .idle
-            return
-        }
         do {
             try await connectWithAutoRecovery(
                 codex: codex,
-                serverURLs: fullURLs,
                 performAutoRetry: true,
-                continueWhile: { self.shouldContinueManualReconnect }
+                continueWhile: { self.shouldContinueManualReconnect },
+                serverURLProvider: { await self.preferredReconnectURL(codex: codex) }
             )
         } catch {
             if isCancellationLikeError(error) {
@@ -167,15 +156,11 @@ final class ContentViewModel {
             return
         }
 
-        guard let fullURLs = await preferredReconnectURLs(codex: codex) else {
-            return
-        }
-
         do {
             try await connectWithAutoRecovery(
                 codex: codex,
-                serverURLs: fullURLs,
-                performAutoRetry: true
+                performAutoRetry: true,
+                serverURLProvider: { await self.preferredReconnectURL(codex: codex) }
             )
         } catch {
             // Keep the saved pairing so temporary Mac/relay outages can recover on the next retry.
@@ -198,7 +183,7 @@ final class ContentViewModel {
         // Keep retryable reconnects alive until the socket recovers or the pairing becomes invalid.
         while codex.shouldAutoReconnectOnForeground, attempt < maxAttempts {
 
-            guard let fullURLs = await preferredReconnectURLs(codex: codex) else {
+            guard let fullURL = await preferredReconnectURL(codex: codex) else {
                 codex.shouldAutoReconnectOnForeground = false
                 codex.connectionRecoveryState = .idle
                 return
@@ -227,11 +212,7 @@ final class ContentViewModel {
                     attempt: max(1, attempt + 1),
                     message: "Reconnecting..."
                 )
-                try await connectWithAutoRecovery(
-                    codex: codex,
-                    serverURLs: fullURLs,
-                    performAutoRetry: false
-                )
+                try await connect(codex: codex, serverURL: fullURL)
                 codex.connectionRecoveryState = .idle
                 codex.lastErrorMessage = nil
                 codex.shouldAutoReconnectOnForeground = false
@@ -294,7 +275,7 @@ final class ContentViewModel {
 
 extension ContentViewModel {
     private enum ReconnectURLResolution {
-        case use([String])
+        case use(String)
         case fallbackToSaved
         case stop
     }
@@ -312,11 +293,13 @@ extension ContentViewModel {
         )
     }
 
+    // Re-resolves the reconnect target on every retry so bridge restarts cannot pin
+    // launch/manual recovery loops to one stale saved session id.
     func connectWithAutoRecovery(
         codex: CodexService,
-        serverURLs: [String],
         performAutoRetry: Bool,
-        continueWhile shouldContinue: (() -> Bool)? = nil
+        continueWhile shouldContinue: (() -> Bool)? = nil,
+        serverURLProvider: () async -> String?
     ) async throws {
         guard !isRunningAutoReconnect else {
             return
@@ -325,21 +308,20 @@ extension ContentViewModel {
         isRunningAutoReconnect = true
         defer { isRunningAutoReconnect = false }
 
-        let candidates = serverURLs.reduce(into: [String]()) { result, value in
-            let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalized.isEmpty, !result.contains(normalized) else {
-                return
-            }
-            result.append(normalized)
-        }
-        guard !candidates.isEmpty else {
-            throw CodexServiceError.invalidInput("No relay URL is available for reconnect.")
-        }
-
         let maxAttemptIndex = performAutoRetry ? autoReconnectBackoffNanoseconds.count : 0
         var lastError: Error?
 
         for attemptIndex in 0...maxAttemptIndex {
+            guard shouldContinue?() ?? true else {
+                codex.connectionRecoveryState = .idle
+                throw CancellationError()
+            }
+
+            guard let serverURL = await serverURLProvider() else {
+                codex.connectionRecoveryState = .idle
+                return
+            }
+
             guard shouldContinue?() ?? true else {
                 codex.connectionRecoveryState = .idle
                 throw CancellationError()
@@ -352,63 +334,51 @@ extension ContentViewModel {
                 )
             }
 
-            var sawRetryableError = false
-
-            for serverURL in candidates {
-                do {
-                    try await connect(codex: codex, serverURL: serverURL)
-                    if let relayBaseURL = relayBaseURL(from: serverURL) {
-                        codex.rememberWorkingRelayURL(relayBaseURL)
-                    }
-                    codex.connectionRecoveryState = .idle
-                    codex.lastErrorMessage = nil
-                    codex.shouldAutoReconnectOnForeground = false
-                    return
-                } catch {
-                    if isCancellationLikeError(error) {
-                        codex.connectionRecoveryState = .idle
-                        throw error
-                    }
-
-                    lastError = error
-                    if codex.secureConnectionState == .rePairRequired {
-                        codex.connectionRecoveryState = .idle
-                        codex.shouldAutoReconnectOnForeground = false
-                        if codex.lastErrorMessage?.isEmpty ?? true {
-                            codex.lastErrorMessage = codex.userFacingConnectFailureMessage(error)
-                        }
-                        throw error
-                    }
-
-                    let isRetryable = codex.isRecoverableTransientConnectionError(error)
-                        || codex.isBenignBackgroundDisconnect(error)
-                        || codex.isRetryableSavedSessionConnectError(error)
-                    sawRetryableError = sawRetryableError || isRetryable
-                }
-            }
-
-            guard let lastError else {
-                throw CodexServiceError.invalidInput("No relay URL is available for reconnect.")
-            }
-
-            guard performAutoRetry,
-                  sawRetryableError,
-                  attemptIndex < autoReconnectBackoffNanoseconds.count else {
+            do {
+                try await connect(codex: codex, serverURL: serverURL)
                 codex.connectionRecoveryState = .idle
+                codex.lastErrorMessage = nil
                 codex.shouldAutoReconnectOnForeground = false
-                codex.lastErrorMessage = codex.userFacingConnectFailureMessage(lastError)
-                throw lastError
-            }
+                return
+            } catch {
+                if isCancellationLikeError(error) {
+                    codex.connectionRecoveryState = .idle
+                    throw error
+                }
 
-            codex.lastErrorMessage = nil
-            codex.connectionRecoveryState = .retrying(
-                attempt: attemptIndex + 1,
-                message: codex.recoveryStatusMessage(for: lastError)
-            )
-            await sleepForReconnectBackoff(
-                autoReconnectBackoffNanoseconds[attemptIndex],
-                continueWhile: shouldContinue
-            )
+                lastError = error
+                if codex.secureConnectionState == .rePairRequired {
+                    codex.connectionRecoveryState = .idle
+                    codex.shouldAutoReconnectOnForeground = false
+                    if codex.lastErrorMessage?.isEmpty ?? true {
+                        codex.lastErrorMessage = codex.userFacingConnectFailureMessage(error)
+                    }
+                    throw error
+                }
+
+                let isRetryable = codex.isRecoverableTransientConnectionError(error)
+                    || codex.isBenignBackgroundDisconnect(error)
+                    || codex.isRetryableSavedSessionConnectError(error)
+
+                guard performAutoRetry,
+                      isRetryable,
+                      attemptIndex < autoReconnectBackoffNanoseconds.count else {
+                    codex.connectionRecoveryState = .idle
+                    codex.shouldAutoReconnectOnForeground = false
+                    codex.lastErrorMessage = codex.userFacingConnectFailureMessage(error)
+                    throw error
+                }
+
+                codex.lastErrorMessage = nil
+                codex.connectionRecoveryState = .retrying(
+                    attempt: attemptIndex + 1,
+                    message: codex.recoveryStatusMessage(for: error)
+                )
+                await sleepForReconnectBackoff(
+                    autoReconnectBackoffNanoseconds[attemptIndex],
+                    continueWhile: shouldContinue
+                )
+            }
         }
 
         if let lastError {
@@ -420,12 +390,12 @@ extension ContentViewModel {
     }
 
     // Chooses the best reconnect path: resolve the live trusted-Mac session first, then fall back to the saved QR session.
-    func preferredReconnectURLs(codex: CodexService) async -> [String]? {
+    func preferredReconnectURL(codex: CodexService) async -> String? {
         switch await trustedReconnectResolution(codex: codex) {
-        case .use(let resolvedURLs):
-            return resolvedURLs
+        case .use(let resolvedURL):
+            return resolvedURL
         case .fallbackToSaved:
-            return savedReconnectURLs(codex: codex)
+            return savedReconnectURL(codex: codex)
         case .stop:
             return nil
         }
@@ -438,10 +408,10 @@ extension ContentViewModel {
         }
 
         do {
-            guard let trustedReconnectURLs = try await resolvedTrustedReconnectURL(codex: codex) else {
+            guard let trustedReconnectURL = try await resolvedTrustedReconnectURL(codex: codex) else {
                 return .fallbackToSaved
             }
-            return .use(trustedReconnectURLs)
+            return .use(trustedReconnectURL)
         } catch let error as CodexTrustedSessionResolveError {
             return trustedReconnectResolution(for: error, codex: codex)
         } catch is CancellationError {
@@ -455,13 +425,12 @@ extension ContentViewModel {
     }
 
     // Builds the live reconnect URL after the trusted-session lookup succeeds.
-    private func resolvedTrustedReconnectURL(codex: CodexService) async throws -> [String]? {
+    private func resolvedTrustedReconnectURL(codex: CodexService) async throws -> String? {
         let resolved = try await codex.resolveTrustedMacSession()
-        let relayURLs = codex.normalizedRelayCandidateURLs
-        guard !relayURLs.isEmpty else {
+        guard let relayURL = codex.normalizedRelayURL else {
             return nil
         }
-        return fullRelayURLs(relayBaseURLs: relayURLs, sessionId: resolved.sessionId)
+        return "\(relayURL)/\(resolved.sessionId)"
     }
 
     // Applies trusted-resolve error policy without mixing it into the happy path URL assembly.
@@ -501,44 +470,12 @@ extension ContentViewModel {
     }
 
     // Reuses the last QR-resolved session when trusted lookup is unavailable or not yet supported end-to-end.
-    private func savedReconnectURLs(codex: CodexService) -> [String]? {
-        guard let sessionId = codex.normalizedRelaySessionId else {
+    private func savedReconnectURL(codex: CodexService) -> String? {
+        guard let sessionId = codex.normalizedRelaySessionId,
+              let relayURL = codex.normalizedRelayURL else {
             return nil
         }
-        let relayURLs = codex.normalizedRelayCandidateURLs
-        guard !relayURLs.isEmpty else {
-            return nil
-        }
-        return fullRelayURLs(relayBaseURLs: relayURLs, sessionId: sessionId)
-    }
-
-    private func fullRelayURLs(relayBaseURLs: [String], sessionId: String) -> [String] {
-        relayBaseURLs.reduce(into: [String]()) { result, relayBaseURL in
-            let normalizedBaseURL = relayBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalizedBaseURL.isEmpty else {
-                return
-            }
-            let fullURL = "\(normalizedBaseURL)/\(sessionId)"
-            guard !result.contains(fullURL) else {
-                return
-            }
-            result.append(fullURL)
-        }
-    }
-
-    private func relayBaseURL(from fullURL: String) -> String? {
-        guard let url = URL(string: fullURL),
-              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return nil
-        }
-
-        let pathComponents = components.path.split(separator: "/").map(String.init)
-        guard pathComponents.count >= 2 else {
-            return nil
-        }
-
-        components.path = "/" + pathComponents.dropLast().joined(separator: "/")
-        return components.string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(relayURL)/\(sessionId)"
     }
 
     // Centralizes reconnect sleeps so manual retry can interrupt stale foreground backoff quickly.

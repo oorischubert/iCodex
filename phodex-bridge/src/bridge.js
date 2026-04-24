@@ -2,11 +2,11 @@
 // Purpose: Runs Codex locally, bridges relay traffic, and coordinates desktop refreshes for Codex.app.
 // Layer: CLI service
 // Exports: startBridge
-// Depends on: ws, crypto, os, ./qr, ./codex-desktop-refresher, ./codex-transport, ./rollout-watch, ./voice-handler
+// Depends on: ws, crypto, os, ./qr, ./codex-desktop-refresher, ./codex-transport, ./rollout-watch, ./voice-handler, ./ios-app-compatibility
 
 const WebSocket = require("ws");
 const { randomBytes } = require("crypto");
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const os = require("os");
 const { promisify } = require("util");
 const {
@@ -18,6 +18,7 @@ const { createThreadRolloutActivityWatcher } = require("./rollout-watch");
 const { printQR } = require("./qr");
 const { rememberActiveThread } = require("./session-state");
 const { handleDesktopRequest } = require("./desktop-handler");
+const { readDaemonConfig, writeDaemonConfig } = require("./daemon-state");
 const { handleGitRequest } = require("./git-handler");
 const { handleThreadContextRequest } = require("./thread-context-handler");
 const { handleWorkspaceRequest } = require("./workspace-handler");
@@ -31,10 +32,19 @@ const { createPushNotificationServiceClient } = require("./push-notification-ser
 const { createPushNotificationTracker } = require("./push-notification-tracker");
 const {
   loadOrCreateBridgeDeviceState,
+  rememberLastSeenPhoneAppVersion,
   resolveBridgeRelaySession,
 } = require("./secure-device-state");
 const { createBridgeSecureTransport } = require("./secure-transport");
 const { createRolloutLiveMirrorController } = require("./rollout-live-mirror");
+const { version: bridgePackageVersion = "" } = require("../package.json");
+const {
+  MINIMUM_SUPPORTED_IOS_APP_VERSION,
+  buildCachedIOSAppCompatibilityWarning,
+  buildIOSAppCompatibilitySnapshot,
+  normalizeVersionString,
+} = require("./ios-app-compatibility");
+const { createShortPairingCode, SHORT_PAIRING_CODE_LENGTH } = require("./qr");
 
 const execFileAsync = promisify(execFile);
 const RELAY_WATCHDOG_PING_INTERVAL_MS = 10_000;
@@ -42,18 +52,21 @@ const RELAY_WATCHDOG_STALE_AFTER_MS = 25_000;
 const BRIDGE_STATUS_HEARTBEAT_INTERVAL_MS = 5_000;
 const STALE_RELAY_STATUS_MESSAGE = "Relay heartbeat stalled; reconnect pending.";
 const RELAY_HISTORY_IMAGE_REFERENCE_URL = "icodex://history-image-elided";
-
 function startBridge({
   config: explicitConfig = null,
   printPairingQr = true,
-  onPairingPayload = null,
+  onPairingSession = null,
   onBridgeStatus = null,
 } = {}) {
   const config = explicitConfig || readBridgeConfig();
+  config.keepMacAwakeEnabled = config.keepMacAwakeEnabled !== false;
+  const bridgeWakeAssertion = createMacOSBridgeWakeAssertion({
+    enabled: config.keepMacAwakeEnabled,
+  });
   const relayBaseUrl = config.relayUrl.replace(/\/+$/, "");
   if (!relayBaseUrl) {
-    console.error("[icodex] No relay URL configured.");
-    console.error("[icodex] Set ICODEX_RELAY or REMODEX_RELAY, or start your own relay before launching the bridge.");
+    console.error("[remodex] No relay URL configured.");
+    console.error("[remodex] In a source checkout, run ./run-local-remodex.sh or set REMODEX_RELAY.");
     process.exit(1);
   }
 
@@ -61,11 +74,17 @@ function startBridge({
   try {
     deviceState = loadOrCreateBridgeDeviceState();
   } catch (error) {
-    console.error(`[icodex] ${(error && error.message) || "Failed to load the saved bridge pairing state."}`);
+    console.error(`[remodex] ${(error && error.message) || "Failed to load the saved bridge pairing state."}`);
     process.exit(1);
   }
   const relaySession = resolveBridgeRelaySession(deviceState);
   deviceState = relaySession.deviceState;
+  let lastIOSAppCompatibilityWarning = "";
+  const cachedIOSAppCompatibilityWarning = buildCachedIOSAppCompatibilityWarning({
+    bridgeVersion: bridgePackageVersion,
+    iosAppVersion: deviceState.lastSeenPhoneAppVersion,
+  });
+  logIOSAppCompatibilityWarning(cachedIOSAppCompatibilityWarning);
   const sessionId = relaySession.sessionId;
   const relaySessionUrl = `${relayBaseUrl}/${sessionId}`;
   const notificationSecret = randomBytes(24).toString("hex");
@@ -101,6 +120,7 @@ function startBridge({
   let lastRelayActivityAt = 0;
   let lastPublishedBridgeStatus = null;
   let lastConnectionStatus = null;
+  let codexLaunchState = config.codexEndpoint ? "connected" : "starting";
   let codexHandshakeState = config.codexEndpoint ? "warm" : "cold";
   const forwardedInitializeRequestIds = new Set();
   const bridgeManagedCodexRequestWaiters = new Map();
@@ -125,9 +145,7 @@ function startBridge({
   const secureTransport = createBridgeSecureTransport({
     sessionId,
     relayUrl: relayBaseUrl,
-    relayUrls: config.localRelayEnabled
-      ? (config.localRelayAdvertiseHosts || []).map((host) => `ws://${host}:${config.localRelayPort}/relay`)
-      : [relayBaseUrl],
+    relayUrls: normalizeRelayUrlCandidates(config.relayUrls, relayBaseUrl),
     deviceState,
     onTrustedPhoneUpdate(nextDeviceState) {
       deviceState = nextDeviceState;
@@ -157,11 +175,12 @@ function startBridge({
   const codex = createCodexTransport({
     endpoint: config.codexEndpoint,
     env: process.env,
-    logPrefix: "[icodex]",
+    appPath: config.codexAppPath,
+    logPrefix: "[remodex]",
   });
   const voiceHandler = createVoiceHandler({
     sendCodexRequest,
-    logPrefix: "[icodex]",
+    logPrefix: "[remodex]",
   });
   startBridgeStatusHeartbeat();
   publishBridgeStatus({
@@ -172,6 +191,7 @@ function startBridge({
   });
 
   codex.onError((error) => {
+    codexLaunchState = "error";
     publishBridgeStatus({
       state: "error",
       connectionStatus: "error",
@@ -179,14 +199,23 @@ function startBridge({
       lastError: error.message,
     });
     if (config.codexEndpoint) {
-      console.error(`[icodex] Failed to connect to Codex endpoint: ${config.codexEndpoint}`);
+      console.error(`[remodex] Failed to connect to Codex endpoint: ${config.codexEndpoint}`);
     } else {
-      console.error("[icodex] Failed to start `codex app-server`.");
-      console.error(`[icodex] Launch command: ${codex.describe()}`);
-      console.error("[icodex] Make sure the Codex CLI is installed and that the launcher works on this OS.");
+      console.error("[remodex] Failed to start `codex app-server`.");
+      console.error(`[remodex] Launch command: ${codex.describe()}`);
+      console.error("[remodex] Make sure the Codex CLI is installed and that the launcher works on this OS.");
     }
     console.error(error.message);
     process.exit(1);
+  });
+  // Marks the local Codex runtime as launchable before relay/network recovery updates.
+  codex.onStarted(() => {
+    codexLaunchState = "connected";
+    if (!lastPublishedBridgeStatus) {
+      return;
+    }
+
+    publishBridgeStatus(lastPublishedBridgeStatus);
   });
 
   function clearReconnectTimer() {
@@ -252,7 +281,7 @@ function startBridge({
       }
 
       if (hasRelayConnectionGoneStale(lastRelayActivityAt)) {
-        console.warn("[icodex] relay heartbeat stalled; forcing reconnect");
+        console.warn("[remodex] relay heartbeat stalled; forcing reconnect");
         logConnectionStatus("disconnected");
         trackedSocket.terminate();
         return;
@@ -280,7 +309,7 @@ function startBridge({
       pid: process.pid,
       lastError: "",
     });
-    console.log(`[icodex] ${status}`);
+    console.log(`[remodex] ${status}`);
   }
 
   // Retries the relay socket while preserving the active Codex process and session id.
@@ -293,6 +322,7 @@ function startBridge({
       logConnectionStatus("disconnected");
       shutdown(codex, () => socket, () => {
         isShuttingDown = true;
+        bridgeWakeAssertion.stop();
         clearReconnectTimer();
         clearRelayWatchdog();
         clearBridgeStatusHeartbeat();
@@ -324,7 +354,7 @@ function startBridge({
       headers: {
         "x-role": "mac",
         "x-notification-secret": notificationSecret,
-        ...buildMacRegistrationHeaders(deviceState),
+        ...buildMacRegistrationHeaders(deviceState, pairingSession),
       },
     });
     socket = nextSocket;
@@ -387,9 +417,13 @@ function startBridge({
   }
 
   const pairingPayload = secureTransport.createPairingPayload();
-  onPairingPayload?.(pairingPayload);
+  const pairingSession = {
+    pairingPayload,
+    pairingCode: createShortPairingCode({ length: SHORT_PAIRING_CODE_LENGTH }),
+  };
+  onPairingSession?.(pairingSession);
   if (printPairingQr) {
-    printQR(pairingPayload);
+    printQR(pairingSession);
   }
   pushServiceClient.logUnavailable();
   connectRelay();
@@ -420,6 +454,7 @@ function startBridge({
       lastError: "",
     });
     isShuttingDown = true;
+    bridgeWakeAssertion.stop();
     clearReconnectTimer();
     stopContextUsageWatcher();
     rolloutLiveMirror?.stopAll();
@@ -433,12 +468,14 @@ function startBridge({
 
   process.on("SIGINT", () => shutdown(codex, () => socket, () => {
     isShuttingDown = true;
+    bridgeWakeAssertion.stop();
     clearReconnectTimer();
     clearRelayWatchdog();
     clearBridgeStatusHeartbeat();
   }));
   process.on("SIGTERM", () => shutdown(codex, () => socket, () => {
     isShuttingDown = true;
+    bridgeWakeAssertion.stop();
     clearReconnectTimer();
     clearRelayWatchdog();
     clearBridgeStatusHeartbeat();
@@ -467,6 +504,8 @@ function startBridge({
     if (handleDesktopRequest(rawMessage, sendApplicationResponse, {
       bundleId: config.codexBundleId,
       appPath: config.codexAppPath,
+      readBridgePreferences,
+      updateBridgePreferences,
     })) {
       return;
     }
@@ -563,6 +602,7 @@ function startBridge({
       bridgeVersionInfo: bridgeVersionInfoResult.status === "fulfilled"
         ? bridgeVersionInfoResult.value
         : null,
+      transportMode: codex.mode,
     });
   }
 
@@ -818,6 +858,15 @@ function startBridge({
     }
 
     if (method === "initialize" && parsed.id != null) {
+      const compatibilityError = bridgeManagedInitializeCompatibilityError(parsed.params || {});
+      if (compatibilityError) {
+        sendApplicationResponse(JSON.stringify({
+          id: parsed.id,
+          error: compatibilityError,
+        }));
+        return true;
+      }
+
       if (codexHandshakeState !== "warm") {
         forwardedInitializeRequestIds.add(String(parsed.id));
         return false;
@@ -837,6 +886,56 @@ function startBridge({
     }
 
     return false;
+  }
+
+  // Blocks bridge/app version skew before the phone starts calling newer bridge APIs.
+  function bridgeManagedInitializeCompatibilityError(params) {
+    const clientInfo = params && typeof params === "object" ? params.clientInfo : null;
+    const clientName = normalizeNonEmptyString(clientInfo?.name);
+    if (clientName !== "codexmobile_ios") {
+      return null;
+    }
+
+    const clientVersion = normalizeVersionString(clientInfo?.version);
+    if (clientVersion) {
+      deviceState = rememberLastSeenPhoneAppVersion(deviceState, clientVersion);
+    }
+
+    const compatibility = buildIOSAppCompatibilitySnapshot({
+      bridgeVersion: bridgePackageVersion,
+      iosAppVersion: clientVersion,
+    });
+    if (!compatibility.requiresAppUpdate) {
+      return null;
+    }
+
+    logIOSAppCompatibilityWarning(buildCachedIOSAppCompatibilityWarning({
+      bridgeVersion: bridgePackageVersion,
+      iosAppVersion: clientVersion,
+    }));
+
+    return {
+      code: -32001,
+      message: compatibility.message,
+      data: {
+        errorCode: "ios_app_update_required",
+        minimumSupportedAppVersion: MINIMUM_SUPPORTED_IOS_APP_VERSION,
+        bridgeVersion: normalizeVersionString(bridgePackageVersion) || null,
+        clientVersion,
+        compatibleBridgeVersion: compatibility.legacyBridgeVersion,
+        downgradeCommand: compatibility.downgradeCommand,
+      },
+    };
+  }
+
+  function logIOSAppCompatibilityWarning(warning) {
+    const normalizedWarning = typeof warning === "string" ? warning.trim() : "";
+    if (!normalizedWarning || normalizedWarning === lastIOSAppCompatibilityWarning) {
+      return;
+    }
+
+    lastIOSAppCompatibilityWarning = normalizedWarning;
+    console.warn(normalizedWarning);
   }
 
   // Learns whether the underlying Codex transport has already completed its own MCP handshake.
@@ -950,8 +1049,12 @@ function startBridge({
   }
 
   function publishBridgeStatus(status) {
-    lastPublishedBridgeStatus = status;
-    onBridgeStatus?.(status);
+    const nextStatus = {
+      ...status,
+      codexLaunchState,
+    };
+    lastPublishedBridgeStatus = nextStatus;
+    onBridgeStatus?.(nextStatus);
   }
 
   // Refreshes the relay's trusted-mac index after the QR bootstrap locks in a phone identity.
@@ -963,18 +1066,149 @@ function startBridge({
 
     socket.send(JSON.stringify({
       kind: "relayMacRegistration",
-      registration: buildMacRegistration(nextDeviceState),
+      registration: buildMacRegistration(nextDeviceState, pairingSession),
     }));
+  }
+
+  function readBridgePreferences() {
+    return {
+      success: true,
+      preferences: {
+        keepMacAwake: config.keepMacAwakeEnabled !== false,
+      },
+      applied: bridgeWakeAssertion.active,
+    };
+  }
+
+  function updateBridgePreferences(preferences = {}) {
+    const nextKeepMacAwakeEnabled = preferences.keepMacAwake !== false;
+    config.keepMacAwakeEnabled = nextKeepMacAwakeEnabled;
+    bridgeWakeAssertion.setEnabled?.(nextKeepMacAwakeEnabled);
+
+    try {
+      persistBridgePreferences({
+        keepMacAwakeEnabled: nextKeepMacAwakeEnabled,
+      });
+    } catch (error) {
+      const nextError = new Error("Could not save the bridge preference on this Mac.");
+      nextError.errorCode = "bridge_preferences_persist_failed";
+      nextError.userMessage = nextError.message;
+      nextError.cause = error;
+      throw nextError;
+    }
+
+    return readBridgePreferences();
   }
 }
 
+function normalizeRelayUrlCandidates(relayUrls, relayBaseUrl) {
+  const candidates = Array.isArray(relayUrls) ? relayUrls : [];
+  const normalized = [relayBaseUrl, ...candidates]
+    .map((relayUrl) => typeof relayUrl === "string" ? relayUrl.replace(/\/+$/, "") : "")
+    .filter(Boolean);
+  return [...new Set(normalized)];
+}
+
+// Holds a single macOS idle-sleep assertion for as long as the bridge process stays alive.
+function createMacOSBridgeWakeAssertion({
+  platform = process.platform,
+  pid = process.pid,
+  spawnImpl = spawn,
+  consoleImpl = console,
+  enabled = true,
+} = {}) {
+  if (platform !== "darwin") {
+    return {
+      active: false,
+      enabled: false,
+      setEnabled() {
+        return { active: false, enabled: false };
+      },
+      stop() {},
+    };
+  }
+
+  let desiredEnabled = Boolean(enabled);
+  let child = null;
+
+  function stop() {
+    if (!child || child.killed || typeof child.kill !== "function") {
+      child = null;
+      return;
+    }
+
+    try {
+      child.kill();
+    } catch {}
+    child = null;
+  }
+
+  function start() {
+    if (!desiredEnabled || child) {
+      return;
+    }
+
+    try {
+      const nextChild = spawnImpl("/usr/bin/caffeinate", ["-i", "-w", String(pid)], {
+        stdio: "ignore",
+      });
+
+      nextChild.on?.("error", (error) => {
+        consoleImpl.warn(`[remodex] Failed to hold the Mac awake while the bridge is active: ${error.message}`);
+      });
+      nextChild.on?.("exit", () => {
+        if (child === nextChild) {
+          child = null;
+        }
+      });
+      nextChild.unref?.();
+      child = nextChild;
+    } catch (error) {
+      consoleImpl.warn(
+        `[remodex] Failed to start the bridge wake assertion: ${(error && error.message) || "unknown error"}`
+      );
+      child = null;
+    }
+  }
+
+  function setEnabled(nextEnabled) {
+    desiredEnabled = Boolean(nextEnabled);
+    if (desiredEnabled) {
+      start();
+    } else {
+      stop();
+    }
+
+    return {
+      active: Boolean(child && !child.killed),
+      enabled: desiredEnabled,
+    };
+  }
+
+  start();
+
+  return {
+    get active() {
+      return Boolean(child && !child.killed);
+    },
+    get enabled() {
+      return desiredEnabled;
+    },
+    setEnabled,
+    stop,
+  };
+}
+
 // Registers the canonical Mac identity and the one trusted iPhone allowed for auto-resolve.
-function buildMacRegistrationHeaders(deviceState) {
-  const registration = buildMacRegistration(deviceState);
+function buildMacRegistrationHeaders(deviceState, pairingSession) {
+  const registration = buildMacRegistration(deviceState, pairingSession);
   const headers = {
     "x-mac-device-id": registration.macDeviceId,
     "x-mac-identity-public-key": registration.macIdentityPublicKey,
     "x-machine-name": registration.displayName,
+    "x-pairing-code": registration.pairingCode,
+    "x-pairing-version": registration.pairingVersion ? String(registration.pairingVersion) : "",
+    "x-pairing-expires-at": registration.pairingExpiresAt ? String(registration.pairingExpiresAt) : "",
   };
   if (registration.trustedPhoneDeviceId && registration.trustedPhonePublicKey) {
     headers["x-trusted-phone-device-id"] = registration.trustedPhoneDeviceId;
@@ -983,7 +1217,7 @@ function buildMacRegistrationHeaders(deviceState) {
   return headers;
 }
 
-function buildMacRegistration(deviceState) {
+function buildMacRegistration(deviceState, pairingSession) {
   const trustedPhoneEntry = Object.entries(deviceState?.trustedPhones || {})[0] || null;
   return {
     macDeviceId: normalizeNonEmptyString(deviceState?.macDeviceId),
@@ -991,6 +1225,11 @@ function buildMacRegistration(deviceState) {
     displayName: normalizeNonEmptyString(os.hostname()),
     trustedPhoneDeviceId: normalizeNonEmptyString(trustedPhoneEntry?.[0]),
     trustedPhonePublicKey: normalizeNonEmptyString(trustedPhoneEntry?.[1]),
+    pairingCode: normalizeNonEmptyString(pairingSession?.pairingCode),
+    pairingVersion: Number.isInteger(pairingSession?.pairingPayload?.v) ? pairingSession.pairingPayload.v : 0,
+    pairingExpiresAt: Number.isFinite(pairingSession?.pairingPayload?.expiresAt)
+      ? pairingSession.pairingPayload.expiresAt
+      : 0,
   };
 }
 
@@ -1091,7 +1330,8 @@ function normalizeNonEmptyString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
-// Shrinks `thread/read` and `thread/resume` snapshots by eliding inline image blobs.
+// Shrinks `thread/read` and `thread/resume` snapshots by eliding bulky history payloads
+// that the iPhone does not render directly (inline images, compaction replacement history).
 function sanitizeThreadHistoryImagesForRelay(rawMessage, requestMethod) {
   if (requestMethod !== "thread/read" && requestMethod !== "thread/resume") {
     return rawMessage;
@@ -1111,28 +1351,41 @@ function sanitizeThreadHistoryImagesForRelay(rawMessage, requestMethod) {
 
     let turnDidChange = false;
     const sanitizedItems = turn.items.map((item) => {
-      if (!item || typeof item !== "object" || !Array.isArray(item.content)) {
+      if (!item || typeof item !== "object") {
         return item;
       }
 
       let itemDidChange = false;
-      const sanitizedContent = item.content.map((contentItem) => {
-        const sanitizedEntry = sanitizeInlineHistoryImageContentItem(contentItem);
-        if (sanitizedEntry !== contentItem) {
-          itemDidChange = true;
-        }
-        return sanitizedEntry;
-      });
+      let sanitizedItem = item;
 
-      if (!itemDidChange) {
-        return item;
+      if (Array.isArray(item.content)) {
+        const sanitizedContent = item.content.map((contentItem) => {
+          const sanitizedEntry = sanitizeInlineHistoryImageContentItem(contentItem);
+          if (sanitizedEntry !== contentItem) {
+            itemDidChange = true;
+          }
+          return sanitizedEntry;
+        });
+
+        if (itemDidChange) {
+          sanitizedItem = {
+            ...sanitizedItem,
+            content: sanitizedContent,
+          };
+        }
       }
 
-      turnDidChange = true;
-      return {
-        ...item,
-        content: sanitizedContent,
-      };
+      const sanitizedCompactionItem = sanitizeCompactionHistoryItem(sanitizedItem);
+      if (sanitizedCompactionItem !== sanitizedItem) {
+        sanitizedItem = sanitizedCompactionItem;
+        itemDidChange = true;
+      }
+
+      if (itemDidChange) {
+        turnDidChange = true;
+      }
+
+      return itemDidChange ? sanitizedItem : item;
     });
 
     if (!turnDidChange) {
@@ -1160,6 +1413,48 @@ function sanitizeThreadHistoryImagesForRelay(rawMessage, requestMethod) {
       },
     },
   });
+}
+
+// Drops huge replacement-history blobs from compaction items because the phone only needs
+// the compacted marker itself, not the entire pre-compaction transcript snapshot.
+function sanitizeCompactionHistoryItem(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return item;
+  }
+
+  let sanitizedItem = omitCompactionReplacementHistory(item);
+  const payload = sanitizedItem.payload;
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    const sanitizedPayload = omitCompactionReplacementHistory(payload);
+    if (sanitizedPayload !== payload) {
+      sanitizedItem = {
+        ...sanitizedItem,
+        payload: sanitizedPayload,
+      };
+    }
+  }
+
+  return sanitizedItem;
+}
+
+function omitCompactionReplacementHistory(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  let nextValue = value;
+  let didChange = false;
+  for (const key of ["replacement_history", "replacementHistory"]) {
+    if (Object.prototype.hasOwnProperty.call(nextValue, key)) {
+      if (!didChange) {
+        nextValue = { ...nextValue };
+        didChange = true;
+      }
+      delete nextValue[key];
+    }
+  }
+
+  return didChange ? nextValue : value;
 }
 
 // Converts `data:image/...` history content into a tiny placeholder the iPhone can render safely.
@@ -1253,9 +1548,26 @@ function buildHeartbeatBridgeStatus(
   };
 }
 
+function persistBridgePreferences(
+  {
+    keepMacAwakeEnabled,
+  },
+  {
+    readDaemonConfigImpl = readDaemonConfig,
+    writeDaemonConfigImpl = writeDaemonConfig,
+  } = {}
+) {
+  writeDaemonConfigImpl({
+    ...(readDaemonConfigImpl() || {}),
+    keepMacAwakeEnabled,
+  });
+}
+
 module.exports = {
   buildHeartbeatBridgeStatus,
+  createMacOSBridgeWakeAssertion,
   hasRelayConnectionGoneStale,
+  persistBridgePreferences,
   sanitizeThreadHistoryImagesForRelay,
   startBridge,
 };

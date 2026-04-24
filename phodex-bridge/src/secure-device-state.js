@@ -1,7 +1,7 @@
 // FILE: secure-device-state.js
-// Purpose: Persists canonical bridge identity and trusted-phone state for local QR pairing.
+// Purpose: Persists canonical bridge identity, trusted-phone state, and last seen iPhone app version for local QR pairing.
 // Layer: CLI helper
-// Exports: loadOrCreateBridgeDeviceState, resetBridgeDeviceState, rememberTrustedPhone, getTrustedPhonePublicKey, resolveBridgeRelaySession
+// Exports: loadOrCreateBridgeDeviceState, readBridgeDeviceState, resetBridgeDeviceState, rememberTrustedPhone, rememberLastSeenPhoneAppVersion, getTrustedPhonePublicKey, resolveBridgeRelaySession
 // Depends on: fs, os, path, crypto, child_process
 
 const fs = require("fs");
@@ -51,6 +51,16 @@ function loadOrCreateBridgeDeviceState() {
   return nextState;
 }
 
+function readBridgeDeviceState() {
+  const fileRecord = readCanonicalFileStateRecord();
+  if (fileRecord.state) {
+    return fileRecord.state;
+  }
+
+  const keychainRecord = readKeychainStateRecord();
+  return keychainRecord.state || null;
+}
+
 // Removes the saved bridge identity/trust state so the next `icodex up` requires a fresh QR pairing.
 function resetBridgeDeviceState() {
   const removedCanonicalFile = deleteCanonicalFileState();
@@ -79,12 +89,28 @@ function rememberTrustedPhone(state, phoneDeviceId, phoneIdentityPublicKey, { pe
     return state;
   }
 
-  // iCodex supports one trusted iPhone per Mac, so a new trust record replaces old ones.
+  // Remodex supports one trusted iPhone per Mac, so a new trust record replaces old ones.
   const nextState = normalizeBridgeDeviceState({
     ...state,
     trustedPhones: {
       [normalizedDeviceId]: normalizedPublicKey,
     },
+  });
+  if (persist) {
+    writeBridgeDeviceState(nextState);
+  }
+  return nextState;
+}
+
+function rememberLastSeenPhoneAppVersion(state, phoneAppVersion, { persist = true } = {}) {
+  const normalizedPhoneAppVersion = normalizeNonEmptyString(phoneAppVersion);
+  if (!normalizedPhoneAppVersion) {
+    return state;
+  }
+
+  const nextState = normalizeBridgeDeviceState({
+    ...state,
+    lastSeenPhoneAppVersion: normalizedPhoneAppVersion,
   });
   if (persist) {
     writeBridgeDeviceState(nextState);
@@ -115,6 +141,7 @@ function createBridgeDeviceState() {
     macIdentityPublicKey: base64UrlToBase64(publicJwk.x),
     macIdentityPrivateKey: base64UrlToBase64(privateJwk.d),
     trustedPhones: {},
+    lastSeenPhoneAppVersion: null,
   };
 }
 
@@ -326,6 +353,7 @@ function normalizeBridgeDeviceState(rawState) {
   const macDeviceId = normalizeNonEmptyString(rawState?.macDeviceId);
   const macIdentityPublicKey = normalizeNonEmptyString(rawState?.macIdentityPublicKey);
   const macIdentityPrivateKey = normalizeNonEmptyString(rawState?.macIdentityPrivateKey);
+  const lastSeenPhoneAppVersion = normalizeNonEmptyString(rawState?.lastSeenPhoneAppVersion) || null;
 
   if (!macDeviceId || !macIdentityPublicKey || !macIdentityPrivateKey) {
     throw new Error("Bridge device state is incomplete");
@@ -349,6 +377,7 @@ function normalizeBridgeDeviceState(rawState) {
     macIdentityPublicKey,
     macIdentityPrivateKey,
     trustedPhones,
+    lastSeenPhoneAppVersion,
   };
 }
 
@@ -392,6 +421,8 @@ function base64UrlToBase64(value) {
 module.exports = {
   getTrustedPhonePublicKey,
   loadOrCreateBridgeDeviceState,
+  readBridgeDeviceState,
+  rememberLastSeenPhoneAppVersion,
   rememberTrustedPhone,
   resetBridgeDeviceState,
   resolveBridgeRelaySession,

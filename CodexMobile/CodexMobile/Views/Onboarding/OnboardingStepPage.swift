@@ -12,6 +12,7 @@ struct OnboardingStepPage: View {
     let title: String
     let description: String
     var command: String? = nil
+    var commandCaption: String? = nil
 
     private let accentGradient = LinearGradient(
         colors: [Color(.plan).opacity(0.35), Color(.plan).opacity(0.08)],
@@ -82,7 +83,16 @@ struct OnboardingStepPage: View {
                     }
 
                     if let command {
-                        OnboardingCommandCard(command: command)
+                        VStack(alignment: .leading, spacing: 10) {
+                            OnboardingCommandCard(command: command)
+
+                            if let commandCaption, !commandCaption.isEmpty {
+                                Text(commandCaption)
+                                    .font(AppFont.caption())
+                                    .foregroundStyle(.white.opacity(0.45))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 28)
@@ -102,7 +112,7 @@ struct OnboardingStepPage: View {
             stepNumber: 1,
             icon: "terminal",
             title: "Install Codex CLI",
-            description: "The AI coding agent that lives in your terminal. iCodex connects to it from your iPhone.",
+            description: "The AI coding agent that lives in your terminal. Remodex connects to it from your iPhone.",
             command: "npm install -g @openai/codex@latest"
         )
     }
@@ -115,9 +125,10 @@ struct OnboardingStepPage: View {
         OnboardingStepPage(
             stepNumber: 2,
             icon: "link",
-            title: "Install Bridge Dependencies",
-            description: "Set up the local bridge from this repo so your Mac can pair with your iPhone.",
-            command: AppEnvironment.sourceBridgeInstallCommand
+            title: "Install the Bridge",
+            description: "A lightweight relay that securely connects your Mac to your iPhone.",
+            command: "npm install -g remodex@latest",
+            commandCaption: "Remodex uses macOS caffeinate by default while the bridge is running so your Mac stays reachable even if the display turns off. You can change this later in Settings."
         )
     }
     .preferredColorScheme(.dark)
@@ -129,9 +140,9 @@ struct OnboardingStepPage: View {
         OnboardingStepPage(
             stepNumber: 3,
             icon: "qrcode.viewfinder",
-            title: "Start iCodex",
+            title: "Start Pairing",
             description: "Run this on your Mac. A QR code will appear in your terminal — scan it next.",
-            command: AppEnvironment.sourceBridgeStartCommand
+            command: "remodex up"
         )
     }
     .preferredColorScheme(.dark)

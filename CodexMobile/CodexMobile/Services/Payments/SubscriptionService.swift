@@ -25,9 +25,12 @@ struct SubscriptionPackageOption: Identifiable {
 @MainActor
 @Observable
 final class SubscriptionService {
+    private static let freeSendLimit = 5
+
     private(set) var bootstrapState: SubscriptionBootstrapState = .ready
     private(set) var packageOptions: [SubscriptionPackageOption] = []
     private(set) var hasProAccess = true
+    private(set) var freeSendCount = 0
     private(set) var latestPurchaseDate: Date?
     private(set) var willRenew = false
     private(set) var managementURL: URL?
@@ -35,6 +38,24 @@ final class SubscriptionService {
     private(set) var isPurchasing = false
     private(set) var isRestoring = false
     private(set) var lastErrorMessage: String?
+
+    init(defaults: UserDefaults = .standard) {
+        _ = defaults
+    }
+
+    var remainingFreeSendAttempts: Int {
+        Self.freeSendLimit
+    }
+
+    var hasFreeSendAccess: Bool {
+        true
+    }
+
+    var hasAppAccess: Bool {
+        true
+    }
+
+    func consumeFreeSendAttemptIfNeeded() {}
 
     func bootstrap() async {
         bootstrapState = .ready
